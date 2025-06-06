@@ -18,6 +18,7 @@ import {
   Divider,
   Box,
   TextField,
+  Modal,
 } from "@shopify/polaris";
 import {
   ProductIcon,
@@ -155,6 +156,8 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
     const actionType = formData.get("actionType");
     const productId = formData.get("productId");
 
+    console.log('Action called with:', { actionType, productId });
+
     if (actionType === "delete" && productId) {
       // Delete all metafields for this product
       const METAFIELD_NAMESPACE = "bl_custom_button";
@@ -173,6 +176,7 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         }
       `;
 
+      console.log('Querying metafields for product:', productId);
       const metafieldsResponse = await admin.graphql(getMetafieldsQuery, {
         variables: { id: productId }
       });
@@ -185,6 +189,8 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
           };
         };
       }>;
+
+      console.log('Metafields response:', metafieldsData);
 
       if (metafieldsData.errors) {
         console.error("GraphQL errors:", metafieldsData.errors);
@@ -423,10 +429,34 @@ export default function Index() {
   const [setupOpen, setSetupOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
   const handlePreviewProduct = (handle: string) => {
     const previewUrl = `https://${shopDomain}/products/${handle}`;
     window.open(previewUrl, '_blank');
+  };
+
+  const handleConfigureProducts = () => {
+    console.log('Navigating to product-config...');
+    try {
+      navigate("/app/product-config");
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Fallback: use window.location
+      window.location.href = "/app/product-config";
+    }
+  };
+
+  const handleEditProduct = (productId: string) => {
+    console.log('Editing product:', productId);
+    try {
+      navigate(`/app/product-config?productId=${productId}`);
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Fallback: use window.location
+      window.location.href = `/app/product-config?productId=${productId}`;
+    }
   };
 
   // Handle action data effects
@@ -441,39 +471,35 @@ export default function Index() {
   }, [actionData, shopify]);
 
   const handleDeleteClick = (product: Product) => {
-    const modal = document.getElementById('delete-modal') as any;
-    if (modal?.show) {
-      modal.show();
-      // Store product data for later use
-      modal.setAttribute('data-product-id', product.id);
-      modal.setAttribute('data-product-title', product.title);
-    }
+    console.log('Delete clicked for product:', product.title);
+    setProductToDelete(product);
+    setDeleteModalOpen(true);
   };
 
   const confirmDelete = () => {
-    const modal = document.getElementById('delete-modal') as any;
-    const productId = modal?.getAttribute('data-product-id') || '';
-    const productTitle = modal?.getAttribute('data-product-title') || '';
-
-    if (modal?.hide) {
-      modal.hide();
-    }
-
-    if (productId) {
+    console.log('Confirming delete for product:', productToDelete?.title);
+    if (productToDelete) {
       setIsDeleting(true);
       const formData = new FormData();
       formData.set("actionType", "delete");
-      formData.set("productId", productId);
+      formData.set("productId", productToDelete.id);
+
+      console.log('Submitting delete form data:', {
+        actionType: "delete",
+        productId: productToDelete.id
+      });
+
       submit(formData, { method: "post" });
-      shopify?.toast?.show(`Deleting configuration for "${productTitle}"...`, { duration: 2000 });
+      shopify?.toast?.show(`Deleting configuration for "${productToDelete.title}"...`, { duration: 2000 });
     }
+    setDeleteModalOpen(false);
+    setProductToDelete(null);
   };
 
   const cancelDelete = () => {
-    const modal = document.getElementById('delete-modal') as any;
-    if (modal?.hide) {
-      modal.hide();
-    }
+    console.log('Delete cancelled');
+    setDeleteModalOpen(false);
+    setProductToDelete(null);
   };
 
   // Function to truncate URL for better display
@@ -506,7 +532,7 @@ export default function Index() {
       title="DC External Links"
       primaryAction={{
         content: "Configure products",
-        onAction: () => navigate("/app/product-config"),
+        onAction: handleConfigureProducts,
         icon: ProductIcon
       }}
     >
@@ -538,7 +564,7 @@ export default function Index() {
                   <Button
                     variant="primary"
                     size="medium"
-                    onClick={() => navigate("/app/product-config")}
+                    onClick={handleConfigureProducts}
                     icon={ProductIcon}
                   >
                     Add Product
@@ -604,7 +630,7 @@ export default function Index() {
                           <Button
                             variant="secondary"
                             size="medium"
-                            onClick={() => navigate(`/app/product-config?productId=${product.id}`)}
+                            onClick={() => handleEditProduct(product.id)}
                             icon={SettingsIcon}
                           >
                             Edit
@@ -640,7 +666,7 @@ export default function Index() {
                     <Button
                       variant="primary"
                       icon={ProductIcon}
-                      onClick={() => navigate("/app/product-config")}
+                      onClick={handleConfigureProducts}
                     >
                       Configure first product
                     </Button>
@@ -710,7 +736,7 @@ export default function Index() {
                       <InlineStack gap="200">
                         <Button
                           icon={ProductIcon}
-                          onClick={() => navigate("/app/product-config")}
+                          onClick={handleConfigureProducts}
                         >
                           Configure products
                         </Button>
@@ -846,29 +872,37 @@ export default function Index() {
       </Layout>
 
       {/* Delete confirmation modal */}
-      <ui-modal id="delete-modal" variant="small">
-        <div style={{ padding: '20px' }}>
-          <Text as="p" variant="bodyMd">
-            Are you sure you want to delete this product configuration?
-          </Text>
-          <br />
-          <br />
-          <Text as="p" variant="bodyMd" tone="subdued">
-            This will remove all external links and settings for this product. This action cannot be undone.
-          </Text>
-          <br />
-          <br />
-          <Text as="p" variant="bodyMd" tone="subdued">
-            The product will be removed from the configured products list.
-          </Text>
-        </div>
-        <ui-title-bar title="Delete product configuration">
-          <button variant="primary" tone="critical" onClick={confirmDelete}>
-            Delete
-          </button>
-          <button onClick={cancelDelete}>Cancel</button>
-        </ui-title-bar>
-      </ui-modal>
+      <Modal
+        open={deleteModalOpen}
+        onClose={cancelDelete}
+        title="Delete product configuration"
+        primaryAction={{
+          content: 'Delete',
+          onAction: confirmDelete,
+          destructive: true,
+          loading: isDeleting,
+        }}
+        secondaryActions={[
+          {
+            content: 'Cancel',
+            onAction: cancelDelete,
+          },
+        ]}
+      >
+        <Modal.Section>
+          <BlockStack gap="300">
+            <Text as="p" variant="bodyMd">
+              Are you sure you want to delete the configuration for "{productToDelete?.title}"?
+            </Text>
+            <Text as="p" variant="bodyMd" tone="subdued">
+              This will remove all external links and settings for this product. This action cannot be undone.
+            </Text>
+            <Text as="p" variant="bodyMd" tone="subdued">
+              The product will be removed from the configured products list.
+            </Text>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
     </Page>
   );
 }
