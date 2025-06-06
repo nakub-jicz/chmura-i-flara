@@ -251,7 +251,11 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
           });
         }
 
-        console.log(`Deleted configuration for product: ${product?.title}`);
+        console.log(`Successfully deleted configuration for product: ${product?.title}`);
+        console.log('Returning success response:', {
+          success: true,
+          message: `Configuration for "${product?.title}" has been removed successfully.`
+        });
         return json({
           success: true,
           message: `Configuration for "${product?.title}" has been removed successfully.`
@@ -439,23 +443,42 @@ export default function Index() {
 
   const handleConfigureProducts = () => {
     console.log('Navigating to product-config...');
+    console.log('App Bridge instance:', shopify);
     try {
+      // In embedded apps, both approaches might work
+      console.log('Trying navigate...');
       navigate("/app/product-config");
+
+      // If navigate doesn't work, use timeout fallback
+      setTimeout(() => {
+        if (window.location.pathname !== "/app/product-config") {
+          console.log('Navigate failed, using window.location fallback...');
+          window.location.href = "/app/product-config";
+        }
+      }, 100);
     } catch (error) {
       console.error('Navigation error:', error);
-      // Fallback: use window.location
       window.location.href = "/app/product-config";
     }
   };
 
   const handleEditProduct = (productId: string) => {
     console.log('Editing product:', productId);
+    const targetUrl = `/app/product-config?productId=${productId}`;
     try {
-      navigate(`/app/product-config?productId=${productId}`);
+      console.log('Trying navigate to:', targetUrl);
+      navigate(targetUrl);
+
+      // Fallback timeout check
+      setTimeout(() => {
+        if (!window.location.href.includes('product-config')) {
+          console.log('Navigate failed, using window.location fallback...');
+          window.location.href = targetUrl;
+        }
+      }, 100);
     } catch (error) {
       console.error('Navigation error:', error);
-      // Fallback: use window.location
-      window.location.href = `/app/product-config?productId=${productId}`;
+      window.location.href = targetUrl;
     }
   };
 
