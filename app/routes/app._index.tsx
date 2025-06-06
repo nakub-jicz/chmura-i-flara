@@ -430,17 +430,16 @@ export default function Index() {
   const submit = useSubmit();
   const shopify = useAppBridge();
 
-  // App Bridge navigation functions according to official docs
+  // Navigation functions using window.location - most reliable for embedded apps
   const navigateToProductConfig = useCallback(() => {
-    console.log('Navigating to product config using Remix navigate...');
-    // According to Shopify docs, for embedded apps use relative paths
-    navigate("/app/product-config");
-  }, [navigate]);
+    console.log('Navigating to product config using window.location...');
+    window.location.href = '/app/product-config';
+  }, []);
 
   const navigateToEdit = useCallback((productId: string) => {
-    console.log('Navigating to edit product:', productId);
-    navigate(`/app/product-config?productId=${productId}`);
-  }, [navigate]);
+    console.log('Navigating to edit product using window.location:', productId);
+    window.location.href = `/app/product-config?productId=${productId}`;
+  }, []);
 
   const [setupOpen, setSetupOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
