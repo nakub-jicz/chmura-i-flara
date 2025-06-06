@@ -659,7 +659,8 @@ export default function ProductConfigPage() {
   useEffect(() => {
     if (shopify && currentProduct) {
       // Try to use saveBar if available, otherwise try saveBar API
-      const saveBarAPI = shopify.features?.saveBar || (shopify as any).saveBar;
+      const shopifyExtended = shopify as any;
+      const saveBarAPI = shopifyExtended.features?.saveBar || shopifyExtended.saveBar;
 
       if (saveBarAPI) {
         if (hasUnsavedChanges()) {
@@ -683,8 +684,9 @@ export default function ProductConfigPage() {
                   setExternalLinks(currentProduct.externalLinks || []);
                   setHideAtc(currentProduct.hideAtc || false);
                 }
-                if (shopify?.features?.unsavedChanges) {
-                  shopify.features.unsavedChanges.disable();
+                const shopifyExtended = shopify as any;
+                if (shopifyExtended?.features?.unsavedChanges) {
+                  shopifyExtended.features.unsavedChanges.disable();
                 }
                 saveBarAPI.hide();
                 shopify?.toast?.show("Changes discarded", { duration: 2000 });
@@ -979,8 +981,9 @@ export default function ProductConfigPage() {
                     setHideAtc(currentProduct.hideAtc || false);
                   }
                   // Disable unsaved changes after reset
-                  if (shopify?.features?.unsavedChanges) {
-                    shopify.features.unsavedChanges.disable();
+                  const shopifyExtended = shopify as any;
+                  if (shopifyExtended?.features?.unsavedChanges) {
+                    shopifyExtended.features.unsavedChanges.disable();
                   }
                   shopify?.toast?.show("Changes discarded", { duration: 2000 });
                 }}
@@ -1190,6 +1193,7 @@ export default function ProductConfigPage() {
                           </Text>
                           <InlineStack gap="200" blockAlign="center">
                             <TextField
+                              label="Theme Editor URL"
                               value={themeEditorUrl}
                               readOnly
                               autoComplete="off"

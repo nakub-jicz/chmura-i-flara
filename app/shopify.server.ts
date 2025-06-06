@@ -17,7 +17,7 @@ export const shopify = (context: AppLoadContext) =>
     appUrl: context.cloudflare.env.SHOPIFY_APP_URL || "",
     authPathPrefix: "/auth",
     sessionStorage: new PrismaSessionStorage(
-      prisma(context.cloudflare.env.DATABASE_URL),
+      prisma(context.cloudflare.env.DATABASE_URL) as any,
     ),
     distribution: AppDistribution.AppStore,
     future: {

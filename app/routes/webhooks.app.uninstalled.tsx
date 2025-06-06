@@ -3,7 +3,7 @@ import { shopify } from "../shopify.server";
 import db from "../db.server";
 
 export const action = async ({ request, context }: ActionFunctionArgs) => {
-  const { shop, session, topic } = await  shopify(context).webhook(request);
+  const { shop, session, topic } = await shopify(context).authenticate.webhook(request);
 
   console.log(`Received ${topic} webhook for ${shop}`);
 
