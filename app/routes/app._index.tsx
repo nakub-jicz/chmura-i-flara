@@ -816,40 +816,28 @@ export default function Index() {
         console.log(`Updated linkCount to: ${linkCountField.value}`);
       }
 
-      // Update each link's fields
+      // Update each link's fields - but skip checkboxes to avoid conflicts
       expandedProduct.externalLinks.forEach((link, index) => {
         // Update URL field
         const urlField = form.querySelector(`input[name="link_${index}_url"]`) as HTMLInputElement;
-        if (urlField) {
+        if (urlField && urlField.value !== (link.url || "")) {
           urlField.value = link.url || "";
           console.log(`Updated link_${index}_url to: "${urlField.value}"`);
         }
 
         // Update text field
         const textField = form.querySelector(`input[name="link_${index}_text"]`) as HTMLInputElement;
-        if (textField) {
+        if (textField && textField.value !== (link.text || "")) {
           textField.value = link.text || "";
           console.log(`Updated link_${index}_text to: "${textField.value}"`);
         }
 
-        // Update checkbox field
-        const enabledField = form.querySelector(`input[name="link_${index}_enabled"]`) as HTMLInputElement;
-        if (enabledField) {
-          enabledField.checked = link.enabled;
-          console.log(`Updated link_${index}_enabled to: ${enabledField.checked}`);
-
-          // Trigger change event so Shopify Save Bar detects it
-          enabledField.dispatchEvent(new Event('change', { bubbles: true }));
-        }
+        // Skip checkbox updates to avoid conflicts - let React handle them
+        console.log(`Skipping checkbox sync for link_${index}_enabled (React handles this)`);
       });
 
-      // Update hideAtc checkbox
-      const hideAtcField = form.querySelector('input[name="hideAtc"]') as HTMLInputElement;
-      if (hideAtcField) {
-        hideAtcField.checked = expandedProduct.hideAtc;
-        console.log(`Updated hideAtc to: ${hideAtcField.checked}`);
-        hideAtcField.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      // Skip hideAtc checkbox sync - let React handle it
+      console.log(`Skipping hideAtc checkbox sync (React handles this)`);
 
       console.log(`=== DOM VALUES UPDATED FOR ${productId} ===`);
     } catch (error) {
@@ -1085,8 +1073,31 @@ export default function Index() {
     const formData = new FormData();
     formData.set("actionType", "save");
     formData.set("productId", productId);
-    formData.set("externalLinks", JSON.stringify(expandedProduct.externalLinks));
-    formData.set("hideAtc", expandedProduct.hideAtc ? "on" : "off");
+
+    // Set link count
+    formData.set("linkCount", expandedProduct.externalLinks.length.toString());
+
+    // Add each external link's data in the format expected by action
+    expandedProduct.externalLinks.forEach((link, index) => {
+      formData.set(`link_${index}_url`, link.url || "");
+      formData.set(`link_${index}_text`, link.text || "");
+      // Checkbox: only add field if checked (this is how HTML forms work)
+      if (link.enabled) {
+        formData.set(`link_${index}_enabled`, "on");
+      }
+    });
+
+    // Hide ATC checkbox: only add field if checked
+    if (expandedProduct.hideAtc) {
+      formData.set("hideAtc", "on");
+    }
+
+    console.log('=== SAVE PRODUCT CONFIGURATION ===');
+    console.log('Product ID:', productId);
+    console.log('External links:', expandedProduct.externalLinks);
+    console.log('Hide ATC:', expandedProduct.hideAtc);
+    console.log('FormData entries:', Object.fromEntries(formData.entries()));
+    console.log('=== END SAVE ===');
 
     submit(formData, { method: "post" });
     shopify?.toast?.show("Saving configuration...", { duration: 2000 });
@@ -1128,8 +1139,10 @@ export default function Index() {
       console.log(`New product state:`, newState[productId]);
       console.log(`=== END UPDATE EXTERNAL LINK ===`);
 
-      // Update DOM immediately with new state
-      setTimeout(() => updateFormDOMValues(productId, newState[productId]), 0);
+      // Only update DOM for text fields, not checkboxes
+      if (field !== 'enabled') {
+        setTimeout(() => updateFormDOMValues(productId, newState[productId]), 0);
+      }
 
       return newState;
     });
@@ -1180,15 +1193,11 @@ export default function Index() {
           };
         });
 
-
-
         return updated;
       });
 
-      // Keep selected product for edit but stop editing mode
-      // Don't clear selectedProductForEdit immediately - let it stay for user to see the result
-
-
+      // Clear selected product for edit after successful save
+      setSelectedProductForEdit(null);
 
     } else if (actionData?.error) {
       shopify?.toast?.show(actionData.error, { isError: true, duration: 5000 });
@@ -1206,7 +1215,7 @@ export default function Index() {
         return updated;
       });
     }
-  }, [actionData, shopify, selectedProductForEdit]);
+  }, [actionData, shopify]);
 
   const handleDeleteClick = (product: Product) => {
     console.log('Delete clicked for product:', product.title);
@@ -1481,7 +1490,7 @@ export default function Index() {
                                           hideAtc: checked
                                         }
                                       };
-                                      setTimeout(() => updateFormDOMValues(selectedProductForEdit.id, newState[selectedProductForEdit.id]), 0);
+                                      // Skip DOM update for checkboxes - React handles this directly
                                       return newState;
                                     });
                                   }}
@@ -1492,6 +1501,14 @@ export default function Index() {
 
                             {/* Action Buttons */}
                             <InlineStack gap="300" align="start">
+                              <Button
+                                variant="primary"
+                                onClick={() => saveProductConfiguration(selectedProductForEdit.id)}
+                                loading={expandedProducts[selectedProductForEdit.id]?.isSaving}
+                                disabled={expandedProducts[selectedProductForEdit.id]?.isSaving}
+                              >
+                                {expandedProducts[selectedProductForEdit.id]?.isSaving ? "Saving..." : "Save Configuration"}
+                              </Button>
                               <Button
                                 variant="secondary"
                                 onClick={() => handlePreviewProduct(selectedProductForEdit.handle)}
@@ -1732,7 +1749,7 @@ export default function Index() {
                                             hideAtc: checked
                                           }
                                         };
-                                        setTimeout(() => updateFormDOMValues(product.id, newState[product.id]), 0);
+                                        // Skip DOM update for checkboxes - React handles this directly
                                         return newState;
                                       });
                                     }}
@@ -1743,6 +1760,14 @@ export default function Index() {
 
                               {/* Action Buttons */}
                               <InlineStack gap="300" align="start">
+                                <Button
+                                  variant="primary"
+                                  onClick={() => saveProductConfiguration(product.id)}
+                                  loading={expandedProducts[product.id]?.isSaving}
+                                  disabled={expandedProducts[product.id]?.isSaving}
+                                >
+                                  {expandedProducts[product.id]?.isSaving ? "Saving..." : "Save Changes"}
+                                </Button>
                                 <Button
                                   variant="secondary"
                                   onClick={() => handlePreviewProduct(product.handle)}
