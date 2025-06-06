@@ -1584,6 +1584,24 @@ export default function Index() {
                                                 console.log(`New checked state: ${checked}`);
                                                 console.log(`Checkbox render checked state: ${link.enabled}`);
                                                 updateExternalLink(selectedProductForEdit.id, index, "enabled", checked);
+
+                                                // Manually sync checkbox with DOM for Shopify Save Bar
+                                                setTimeout(() => {
+                                                  const form = formRefs.current[selectedProductForEdit.id];
+                                                  if (form) {
+                                                    const checkboxField = form.querySelector(`[name="link_${index}_enabled"]`) as HTMLInputElement;
+                                                    if (checkboxField) {
+                                                      checkboxField.checked = checked;
+                                                      console.log(`Synced checkbox DOM (new product): ${checkboxField.name} = ${checkboxField.checked}`);
+
+                                                      // Trigger change event so Shopify Save Bar detects the change
+                                                      const changeEvent = new Event('change', { bubbles: true });
+                                                      checkboxField.dispatchEvent(changeEvent);
+                                                      console.log(`Dispatched change event for checkbox (new product) ${checkboxField.name}`);
+                                                    }
+                                                  }
+                                                }, 50);
+
                                                 console.log(`=== END CHECKBOX CHANGE ===`);
                                               }}
                                               helpText="When enabled, this button will be visible on the product page"
@@ -1628,7 +1646,24 @@ export default function Index() {
                                           hideAtc: checked
                                         }
                                       };
-                                      // Skip DOM update for checkboxes - React handles this directly
+
+                                      // Manually sync hideAtc checkbox with DOM for Shopify Save Bar
+                                      setTimeout(() => {
+                                        const form = formRefs.current[selectedProductForEdit.id];
+                                        if (form) {
+                                          const hideAtcField = form.querySelector(`[name="hideAtc"]`) as HTMLInputElement;
+                                          if (hideAtcField) {
+                                            hideAtcField.checked = checked;
+                                            console.log(`Synced hideAtc DOM (new product): ${hideAtcField.name} = ${hideAtcField.checked}`);
+
+                                            // Trigger change event so Shopify Save Bar detects the change
+                                            const changeEvent = new Event('change', { bubbles: true });
+                                            hideAtcField.dispatchEvent(changeEvent);
+                                            console.log(`Dispatched change event for hideAtc (new product)`);
+                                          }
+                                        }
+                                      }, 50);
+
                                       return newState;
                                     });
                                   }}
@@ -1850,6 +1885,24 @@ export default function Index() {
                                                     valueType: typeof checked
                                                   });
                                                   updateExternalLink(product.id, index, "enabled", checked);
+
+                                                  // Manually sync checkbox with DOM for Shopify Save Bar
+                                                  setTimeout(() => {
+                                                    const form = formRefs.current[product.id];
+                                                    if (form) {
+                                                      const checkboxField = form.querySelector(`[name="link_${index}_enabled"]`) as HTMLInputElement;
+                                                      if (checkboxField) {
+                                                        checkboxField.checked = checked;
+                                                        console.log(`Synced checkbox DOM: ${checkboxField.name} = ${checkboxField.checked}`);
+
+                                                        // Trigger change event so Shopify Save Bar detects the change
+                                                        const changeEvent = new Event('change', { bubbles: true });
+                                                        checkboxField.dispatchEvent(changeEvent);
+                                                        console.log(`Dispatched change event for checkbox ${checkboxField.name}`);
+                                                      }
+                                                    }
+                                                  }, 50);
+
                                                   console.log(`=== END CHECKBOX CHANGE ===`);
                                                 }}
                                                 helpText="When enabled, this button will be visible on the product page"
@@ -1894,7 +1947,24 @@ export default function Index() {
                                             hideAtc: checked
                                           }
                                         };
-                                        // Skip DOM update for checkboxes - React handles this directly
+
+                                        // Manually sync hideAtc checkbox with DOM for Shopify Save Bar
+                                        setTimeout(() => {
+                                          const form = formRefs.current[product.id];
+                                          if (form) {
+                                            const hideAtcField = form.querySelector(`[name="hideAtc"]`) as HTMLInputElement;
+                                            if (hideAtcField) {
+                                              hideAtcField.checked = checked;
+                                              console.log(`Synced hideAtc DOM: ${hideAtcField.name} = ${hideAtcField.checked}`);
+
+                                              // Trigger change event so Shopify Save Bar detects the change
+                                              const changeEvent = new Event('change', { bubbles: true });
+                                              hideAtcField.dispatchEvent(changeEvent);
+                                              console.log(`Dispatched change event for hideAtc`);
+                                            }
+                                          }
+                                        }, 50);
+
                                         return newState;
                                       });
                                     }}
