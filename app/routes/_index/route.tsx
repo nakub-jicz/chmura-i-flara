@@ -23,7 +23,7 @@ export default function App() {
     <div className={styles.index}>
       <div className={styles.content}>
         <h1 className={styles.heading}>
-          Shopify Remix App with Cloudflare Workers
+          Shopify Remix App with Cloudflare Workers niczyporuk
         </h1>
         <p className={styles.text}>
           A tagline about [your app] that describes your value proposition.
