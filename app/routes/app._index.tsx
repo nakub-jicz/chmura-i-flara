@@ -1120,104 +1120,125 @@ export default function Index() {
 
   // Save single product configuration (used by individual save buttons)
   const saveProductConfiguration = (productId: string) => {
-    const expandedProduct = expandedProducts[productId];
-    if (!expandedProduct) return;
+    try {
+      console.log('=== SAVE PRODUCT CONFIGURATION START ===');
+      console.log('Product ID:', productId);
 
-    setExpandedProducts(prev => ({
-      ...prev,
-      [productId]: {
-        ...prev[productId],
-        isSaving: true
+      const expandedProduct = expandedProducts[productId];
+      console.log('Expanded product found:', !!expandedProduct);
+      console.log('Expanded product data:', expandedProduct);
+
+      if (!expandedProduct) {
+        console.log('ERROR: No expanded product found, returning early');
+        return;
       }
-    }));
 
-    const formData = new FormData();
-    formData.set("actionType", "save");
-    formData.set("productId", productId);
+      setExpandedProducts(prev => ({
+        ...prev,
+        [productId]: {
+          ...prev[productId],
+          isSaving: true
+        }
+      }));
 
-    // Set link count
-    formData.set("linkCount", expandedProduct.externalLinks.length.toString());
+      const formData = new FormData();
+      formData.set("actionType", "save");
+      formData.set("productId", productId);
 
-    // Add each external link's data in the format expected by action
-    expandedProduct.externalLinks.forEach((link, index) => {
-      formData.set(`link_${index}_url`, link.url || "");
-      formData.set(`link_${index}_text`, link.text || "");
-      // Checkbox: only add field if checked (this is how HTML forms work)
-      if (link.enabled) {
-        formData.set(`link_${index}_enabled`, "on");
-      }
-    });
+      // Set link count
+      formData.set("linkCount", expandedProduct.externalLinks.length.toString());
 
-    // Hide ATC checkbox: only add field if checked
-    if (expandedProduct.hideAtc) {
-      formData.set("hideAtc", "on");
-    }
-
-    console.log('=== SAVE PRODUCT CONFIGURATION ===');
-    console.log('Product ID:', productId);
-    console.log('Expanded product full state:', expandedProduct);
-    console.log('External links in detail:', expandedProduct.externalLinks.map((link, index) => ({
-      index,
-      url: link.url,
-      text: link.text,
-      enabled: link.enabled,
-      enabled_type: typeof link.enabled
-    })));
-    console.log('Hide ATC:', expandedProduct.hideAtc);
-    console.log('FormData entries before submit:', Object.fromEntries(formData.entries()));
-
-    // Verify each checkbox field specifically
-    expandedProduct.externalLinks.forEach((link, index) => {
-      const fieldName = `link_${index}_enabled`;
-      const fieldValue = formData.get(fieldName);
-      console.log(`Checkbox field ${fieldName}: value="${fieldValue}", original enabled=${link.enabled}`);
-    });
-
-    // Test JSON stringification before submit
-    const testJsonString = JSON.stringify(expandedProduct.externalLinks);
-    console.log('JSON string that will be sent:', testJsonString);
-    const testParsedBack = JSON.parse(testJsonString);
-    console.log('JSON parsed back test:', testParsedBack);
-
-    console.log('=== END SAVE ===');
-
-    // Get the form element and submit it directly
-    const form = formRefs.current[productId];
-    if (form) {
-      console.log('Found form element, updating DOM and submitting form directly');
-      // Update the form's DOM values with our FormData
-      Object.entries(Object.fromEntries(formData.entries())).forEach(([key, value]) => {
-        const field = form.querySelector(`[name="${key}"]`) as HTMLInputElement;
-        if (field) {
-          if (field.type === 'checkbox') {
-            const oldChecked = field.checked;
-            field.checked = value === 'on';
-            console.log(`Updated checkbox ${key}: oldChecked=${oldChecked}, newChecked=${field.checked}, formDataValue="${value}"`);
-
-            // Double-check that the checkbox was actually updated
-            setTimeout(() => {
-              const recheckField = form.querySelector(`[name="${key}"]`) as HTMLInputElement;
-              if (recheckField) {
-                console.log(`Checkbox ${key} recheck after DOM update: checked=${recheckField.checked}`);
-              }
-            }, 10);
-          } else {
-            field.value = value as string;
-            console.log(`Updated field ${key}: value="${field.value}"`);
-          }
-        } else {
-          console.log(`Field ${key} not found in form`);
+      // Add each external link's data in the format expected by action
+      expandedProduct.externalLinks.forEach((link, index) => {
+        formData.set(`link_${index}_url`, link.url || "");
+        formData.set(`link_${index}_text`, link.text || "");
+        // Checkbox: only add field if checked (this is how HTML forms work)
+        if (link.enabled) {
+          formData.set(`link_${index}_enabled`, "on");
         }
       });
 
-      // Submit the actual form
-      form.requestSubmit();
-    } else {
-      console.log('Form element not found, using fallback submit');
-      // Fallback - use submit directly 
-      submit(formData, { method: "post" });
+      // Hide ATC checkbox: only add field if checked
+      if (expandedProduct.hideAtc) {
+        formData.set("hideAtc", "on");
+      }
+
+      console.log('=== SAVE PRODUCT CONFIGURATION ===');
+      console.log('Product ID:', productId);
+      console.log('Expanded product full state:', expandedProduct);
+      console.log('External links in detail:', expandedProduct.externalLinks.map((link, index) => ({
+        index,
+        url: link.url,
+        text: link.text,
+        enabled: link.enabled,
+        enabled_type: typeof link.enabled
+      })));
+      console.log('Hide ATC:', expandedProduct.hideAtc);
+      console.log('FormData entries before submit:', Object.fromEntries(formData.entries()));
+
+      // Verify each checkbox field specifically
+      expandedProduct.externalLinks.forEach((link, index) => {
+        const fieldName = `link_${index}_enabled`;
+        const fieldValue = formData.get(fieldName);
+        console.log(`Checkbox field ${fieldName}: value="${fieldValue}", original enabled=${link.enabled}`);
+      });
+
+      // Test JSON stringification before submit
+      const testJsonString = JSON.stringify(expandedProduct.externalLinks);
+      console.log('JSON string that will be sent:', testJsonString);
+      const testParsedBack = JSON.parse(testJsonString);
+      console.log('JSON parsed back test:', testParsedBack);
+
+      console.log('=== END SAVE ===');
+
+      // Get the form element and submit it directly
+      console.log('Looking for form with productId:', productId);
+      console.log('formRefs.current:', formRefs.current);
+      console.log('Available form keys:', Object.keys(formRefs.current));
+
+      const form = formRefs.current[productId];
+      console.log('Form found:', !!form);
+      console.log('Form element:', form);
+
+      if (form) {
+        console.log('Found form element, updating DOM and submitting form directly');
+        // Update the form's DOM values with our FormData
+        Object.entries(Object.fromEntries(formData.entries())).forEach(([key, value]) => {
+          const field = form.querySelector(`[name="${key}"]`) as HTMLInputElement;
+          if (field) {
+            if (field.type === 'checkbox') {
+              const oldChecked = field.checked;
+              field.checked = value === 'on';
+              console.log(`Updated checkbox ${key}: oldChecked=${oldChecked}, newChecked=${field.checked}, formDataValue="${value}"`);
+
+              // Double-check that the checkbox was actually updated
+              setTimeout(() => {
+                const recheckField = form.querySelector(`[name="${key}"]`) as HTMLInputElement;
+                if (recheckField) {
+                  console.log(`Checkbox ${key} recheck after DOM update: checked=${recheckField.checked}`);
+                }
+              }, 10);
+            } else {
+              field.value = value as string;
+              console.log(`Updated field ${key}: value="${field.value}"`);
+            }
+          } else {
+            console.log(`Field ${key} not found in form`);
+          }
+        });
+
+        // Submit the actual form
+        form.requestSubmit();
+      } else {
+        console.log('Form element not found, using fallback submit');
+        // Fallback - use submit directly 
+        submit(formData, { method: "post" });
+      }
+      shopify?.toast?.show("Saving configuration...", { duration: 2000 });
+    } catch (error) {
+      console.error('ERROR in saveProductConfiguration:', error);
+      shopify?.toast?.show("Error saving configuration", { isError: true, duration: 5000 });
     }
-    shopify?.toast?.show("Saving configuration...", { duration: 2000 });
   };
 
   // Update external link in expanded product
