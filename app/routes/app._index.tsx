@@ -1077,16 +1077,28 @@ export default function Index() {
           </Banner>
         </Layout.Section>
 
+
+
         {/* Configured Products Management */}
         <Layout.Section>
           <Card>
-            <BlockStack gap="400">
+            <BlockStack gap="500">
               <InlineStack align="space-between" blockAlign="center">
-                <Text variant="headingMd" as="h2">Configured products</Text>
-                <InlineStack gap="200" blockAlign="center">
-                  <Badge tone={configuredProducts.length > 0 ? "success" : "info"}>
-                    {`${configuredProducts.length} configured`}
-                  </Badge>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    External Links Configuration
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    Add external affiliate links that will appear as buttons on your product pages
+                  </Text>
+                </BlockStack>
+                <InlineStack gap="300" align="end">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Text as="span" variant="bodyMd" fontWeight="semibold">
+                      Products:
+                    </Text>
+                    <Badge tone="info">{`${configuredProducts.length} configured`}</Badge>
+                  </InlineStack>
                   <InlineStack gap="300" align="center">
                     <Button
                       onClick={handleOpenProductPicker}
@@ -1094,12 +1106,12 @@ export default function Index() {
                       variant="primary"
                       disabled={isLoadingPicker}
                     >
-                      {isLoadingPicker ? 'Loading...' : 'Add Product'}
+                      {isLoadingPicker ? 'Opening picker...' : 'Add Product'}
                     </Button>
 
                     {/* Help text for troubleshooting */}
                     <Text as="p" variant="bodyMd" tone="subdued">
-                      Having trouble? Make sure to disable ad blockers for this page.
+                      Nie działa? Sprawdź instrukcje powyżej ↑
                     </Text>
                   </InlineStack>
                 </InlineStack>
