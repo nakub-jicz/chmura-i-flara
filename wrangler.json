@@ -13,7 +13,7 @@
       "nodejs_compat_v2"
     ],
     "vars": {
-      "SHOPIFY_APP_URL": "https://cloudflare-workers-app.ilias-had.workers.dev",
+      "SHOPIFY_APP_URL": "https://cloudflare-workers-app.jakub-okseniuk.workers.dev",
       "SCOPES": "writes_products"
     }
   }
