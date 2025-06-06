@@ -2470,22 +2470,7 @@ export default function Index() {
                           </List>
                         </>
                       )}
-                      <Text as="p" variant="bodyMd" tone="subdued">
-                        <strong>For debugging:</strong> You can{' '}
-                        <Button
-                          variant="plain"
-                          onClick={() => {
-                            setBlockLikelyAdded(false);
-                            if (typeof window !== 'undefined') {
-                              localStorage.removeItem('dc-external-links-block-added');
-                            }
-                            shopify?.toast?.show("Setup reminder will show again", { duration: 2000 });
-                          }}
-                        >
-                          reset the setup reminder
-                        </Button>
-                        {' '}to show the setup banner again.
-                      </Text>
+
                     </BlockStack>
                   </Card>
 

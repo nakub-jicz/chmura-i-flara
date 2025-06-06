@@ -1,0 +1,3 @@
+save changes na dole nie dziala
+force refresh i add block to theme jest do wyjebania na dole
+po usuwaniu linków nie ma save z bridge
