@@ -162,8 +162,38 @@
   </div>
 
 {% else %}
-  {% comment %} --- Ukryty komentarz dla debugowania --- {% endcomment %}
-  <!-- External button: disabled or not configured for product {{ product.id }} -->
+  {% comment %} --- Fallback: Show message if no data but extension is active --- {% endcomment %}
+  {% if request.design_mode %}
+    <div class="external-button-not-configured" style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; text-align: center; margin: 10px 0;">
+      <h4 style="margin: 0 0 10px 0; color: #856404;">🔧 Extension is active but no data found</h4>
+      
+      <p style="margin: 5px 0; color: #856404; font-size: 14px;">
+        The External Button block is working, but no external links are configured for this product ({{ product.title }}).
+      </p>
+      
+      <p style="margin: 10px 0 5px 0; font-size: 12px; color: #856404;">
+        <strong>To configure:</strong><br>
+        1. Go to your DC External Links app<br>
+        2. Add this product and configure external links<br>
+        3. Enable at least one link<br>
+        4. This message will be replaced with actual buttons
+      </p>
+      
+      <div style="margin-top: 10px;">
+        <a href="/admin/apps" 
+           style="background: #007bff; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; display: inline-block; font-size: 12px;">
+          Open DC External Links App
+        </a>
+      </div>
+      
+      <p style="margin: 10px 0 0 0; font-size: 10px; color: #999;">
+        Product ID: {{ product.id }} | Time: {{ "now" | date: "%H:%M:%S" }}
+      </p>
+    </div>
+  {% else %}
+    {% comment %} --- Ukryty komentarz dla debugowania --- {% endcomment %}
+    <!-- External button extension active but no data: product {{ product.id }} at {{ "now" | date: "%H:%M:%S" }} -->
+  {% endif %}
 {% endif %}
 
 {% comment %} --- Ładowanie skryptu --- {% endcomment %}

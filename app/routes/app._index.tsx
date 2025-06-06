@@ -1324,6 +1324,26 @@ export default function Index() {
       }}
     >
       <Layout>
+        {/* Important Setup Banner */}
+        {configuredProducts && configuredProducts.length > 0 && (
+          <Layout.Section>
+            <Banner
+              title="⚠️ Important: Theme Setup Required"
+              tone="warning"
+              action={{
+                content: 'Open Theme Editor',
+                url: themeEditorUrl || `https://${loaderData.shopDomain}/admin/themes`,
+                external: true
+              }}
+            >
+              <Text as="p">
+                If you don't see external buttons on your product pages, you need to add the "External Button" block to your theme.
+                This is a one-time setup: Go to Theme Editor → Product page → Add block → "External Button".
+              </Text>
+            </Banner>
+          </Layout.Section>
+        )}
+
         {/* Banner powitalny */}
         <Layout.Section>
           <Banner
@@ -1946,15 +1966,44 @@ export default function Index() {
                   <Card>
                     <BlockStack gap="300">
                       <InlineStack gap="200" blockAlign="center">
-                        <Badge tone="success">Step 2</Badge>
-                        <Text as="h3" variant="bodyLg" fontWeight="semibold">Buttons appear automatically</Text>
+                        <Badge tone="warning">Step 2</Badge>
+                        <Text as="h3" variant="bodyLg" fontWeight="semibold">Add button block to theme</Text>
                       </InlineStack>
                       <Text as="p">
-                        Once you configure products, external buttons will automatically appear on those product pages.
-                        No manual setup required in the theme editor.
+                        <strong>IMPORTANT:</strong> You need to add the "External Button" block to your product page in the theme editor.
+                        This is a one-time setup required for the buttons to appear.
                       </Text>
-                      <Text as="p" variant="bodyMd" tone="subdued">
-                        Optional: You can customize button appearance and position in the theme editor by modifying the "External Button" block.
+                      <List type="bullet">
+                        <List.Item>Go to Online Store → Themes → Customize</List.Item>
+                        <List.Item>Navigate to a product page</List.Item>
+                        <List.Item>Find the product form section</List.Item>
+                        <List.Item>Click "Add block" and select "External Button"</List.Item>
+                        <List.Item>Position the block where you want external buttons to appear</List.Item>
+                        <List.Item>Save the theme</List.Item>
+                      </List>
+                      <InlineStack gap="200">
+                        {themeEditorUrl && (
+                          <Button
+                            variant="primary"
+                            onClick={() => window.open(themeEditorUrl, '_blank')}
+                            icon={ThemeIcon}
+                          >
+                            Open Theme Editor
+                          </Button>
+                        )}
+                      </InlineStack>
+                    </BlockStack>
+                  </Card>
+
+                  <Card>
+                    <BlockStack gap="300">
+                      <InlineStack gap="200" blockAlign="center">
+                        <Badge tone="success">Step 3</Badge>
+                        <Text as="h3" variant="bodyLg" fontWeight="semibold">Buttons will appear automatically</Text>
+                      </InlineStack>
+                      <Text as="p">
+                        After adding the block to your theme, external buttons will automatically appear on configured product pages.
+                        No additional setup required.
                       </Text>
                     </BlockStack>
                   </Card>
@@ -2038,9 +2087,19 @@ export default function Index() {
                         Why don't I see the external buttons on my product pages?
                       </Text>
                       <Text as="p">
-                        External buttons appear automatically once you configure them in Product Configuration.
-                        If you don't see them, make sure you've added at least one enabled external link for the product.
-                        The buttons will show up on the product page without requiring any manual theme setup.
+                        <strong>Most common reason:</strong> You haven't added the "External Button" block to your theme yet.
+                        This is a required one-time setup step.
+                      </Text>
+                      <List type="bullet">
+                        <List.Item>Go to Online Store → Themes → Customize</List.Item>
+                        <List.Item>Navigate to any product page</List.Item>
+                        <List.Item>Find the product form section (where Add to Cart button is)</List.Item>
+                        <List.Item>Click "Add block" and select "External Button"</List.Item>
+                        <List.Item>Position it where you want the external buttons to appear</List.Item>
+                        <List.Item>Save the theme</List.Item>
+                      </List>
+                      <Text as="p">
+                        After this setup, buttons will automatically appear on any product page where you've configured external links.
                       </Text>
                     </BlockStack>
                   </Card>
