@@ -246,9 +246,12 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         console.log(`URL raw:`, formData.get(`link_${i}_url`));
         console.log(`Text raw:`, formData.get(`link_${i}_text`));
         console.log(`Enabled raw:`, formData.get(`link_${i}_enabled`));
+        console.log(`Enabled raw type:`, typeof formData.get(`link_${i}_enabled`));
+        console.log(`Enabled raw === "on":`, formData.get(`link_${i}_enabled`) === "on");
         console.log(`URL parsed:`, url);
         console.log(`Text parsed:`, text);
         console.log(`Enabled parsed:`, enabled);
+        console.log(`Enabled parsed type:`, typeof enabled);
         console.log(`=== END LINK ${i} PARSING ===`);
 
         externalLinks.push({
@@ -323,6 +326,15 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
       // This ensures the configuration is properly saved and can be retrieved later
       const jsonValue = JSON.stringify(externalLinks);
       console.log('Adding external_links metafield with value:', jsonValue);
+      console.log('JSON value parsed back for verification:', JSON.parse(jsonValue));
+      console.log('External links before JSON stringification:', externalLinks.map((link, index) => ({
+        index,
+        url: link.url,
+        text: link.text,
+        enabled: link.enabled,
+        enabled_type: typeof link.enabled
+      })));
+
       metafieldsToCreate.push({
         key: "external_links",
         value: jsonValue,
@@ -668,6 +680,15 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
             console.log(`=== PARSING EXTERNAL LINKS FOR ${product.title} ===`);
             console.log(`Raw metafield value:`, metafieldMap["external_links"]);
             console.log(`Parsed external links:`, externalLinks);
+            console.log(`External links with types:`, externalLinks.map((link, index) => ({
+              index,
+              url: link.url,
+              text: link.text,
+              enabled: link.enabled,
+              enabled_type: typeof link.enabled,
+              enabled_strict_true: link.enabled === true,
+              enabled_strict_false: link.enabled === false
+            })));
 
             // For display purposes, use the first enabled link
             const enabledLink = externalLinks.find((link: ExternalLink) => link.enabled === true);
@@ -1094,9 +1115,23 @@ export default function Index() {
 
     console.log('=== SAVE PRODUCT CONFIGURATION ===');
     console.log('Product ID:', productId);
-    console.log('External links:', expandedProduct.externalLinks);
+    console.log('Expanded product full state:', expandedProduct);
+    console.log('External links in detail:', expandedProduct.externalLinks.map((link, index) => ({
+      index,
+      url: link.url,
+      text: link.text,
+      enabled: link.enabled,
+      enabled_type: typeof link.enabled
+    })));
     console.log('Hide ATC:', expandedProduct.hideAtc);
-    console.log('FormData entries:', Object.fromEntries(formData.entries()));
+    console.log('FormData entries before submit:', Object.fromEntries(formData.entries()));
+
+    // Verify each checkbox field specifically
+    expandedProduct.externalLinks.forEach((link, index) => {
+      const fieldName = `link_${index}_enabled`;
+      const fieldValue = formData.get(fieldName);
+      console.log(`Checkbox field ${fieldName}: value="${fieldValue}", original enabled=${link.enabled}`);
+    });
     console.log('=== END SAVE ===');
 
     submit(formData, { method: "post" });
