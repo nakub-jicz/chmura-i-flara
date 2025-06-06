@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Form, useNavigation, useActionData, useLoaderData, useNavigate, useSubmit, Link } from "@remix-run/react";
+import { Form, useNavigation, useActionData, useLoaderData, useNavigate, useSubmit } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -430,6 +430,18 @@ export default function Index() {
   const submit = useSubmit();
   const shopify = useAppBridge();
 
+  // App Bridge navigation functions according to official docs
+  const navigateToProductConfig = useCallback(() => {
+    console.log('Navigating to product config using Remix navigate...');
+    // According to Shopify docs, for embedded apps use relative paths
+    navigate("/app/product-config");
+  }, [navigate]);
+
+  const navigateToEdit = useCallback((productId: string) => {
+    console.log('Navigating to edit product:', productId);
+    navigate(`/app/product-config?productId=${productId}`);
+  }, [navigate]);
+
   const [setupOpen, setSetupOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -516,10 +528,7 @@ export default function Index() {
       title="DC External Links"
       primaryAction={{
         content: "Configure products",
-        onAction: () => {
-          console.log('Primary action clicked - trying navigate...');
-          navigate("product-config");
-        },
+        onAction: navigateToProductConfig,
         icon: ProductIcon
       }}
     >
@@ -548,15 +557,14 @@ export default function Index() {
                   <Badge tone={configuredProducts.length > 0 ? "success" : "info"}>
                     {`${configuredProducts.length} configured`}
                   </Badge>
-                  <Link to="product-config" style={{ textDecoration: 'none' }}>
-                    <Button
-                      variant="primary"
-                      size="medium"
-                      icon={ProductIcon}
-                    >
-                      Add Product
-                    </Button>
-                  </Link>
+                  <Button
+                    variant="primary"
+                    size="medium"
+                    onClick={navigateToProductConfig}
+                    icon={ProductIcon}
+                  >
+                    Add Product
+                  </Button>
                 </InlineStack>
               </InlineStack>
 
@@ -615,15 +623,14 @@ export default function Index() {
                         </InlineStack>
 
                         <InlineStack gap="200">
-                          <Link to={`product-config?productId=${product.id}`} style={{ textDecoration: 'none' }}>
-                            <Button
-                              variant="secondary"
-                              size="medium"
-                              icon={SettingsIcon}
-                            >
-                              Edit
-                            </Button>
-                          </Link>
+                          <Button
+                            variant="secondary"
+                            size="medium"
+                            onClick={() => navigateToEdit(product.id)}
+                            icon={SettingsIcon}
+                          >
+                            Edit
+                          </Button>
                           <Button
                             variant="secondary"
                             size="medium"
@@ -652,14 +659,13 @@ export default function Index() {
                     No products configured yet. Start by configuring your first product.
                   </Text>
                   <InlineStack gap="200">
-                    <Link to="product-config" style={{ textDecoration: 'none' }}>
-                      <Button
-                        variant="primary"
-                        icon={ProductIcon}
-                      >
-                        Configure first product
-                      </Button>
-                    </Link>
+                    <Button
+                      variant="primary"
+                      onClick={navigateToProductConfig}
+                      icon={ProductIcon}
+                    >
+                      Configure first product
+                    </Button>
                   </InlineStack>
                 </BlockStack>
               )}
@@ -724,13 +730,12 @@ export default function Index() {
                         Set the destination URL and button text for each product.
                       </Text>
                       <InlineStack gap="200">
-                        <Link to="product-config" style={{ textDecoration: 'none' }}>
-                          <Button
-                            icon={ProductIcon}
-                          >
-                            Configure products
-                          </Button>
-                        </Link>
+                        <Button
+                          onClick={navigateToProductConfig}
+                          icon={ProductIcon}
+                        >
+                          Configure products
+                        </Button>
                       </InlineStack>
                     </BlockStack>
                   </Card>
