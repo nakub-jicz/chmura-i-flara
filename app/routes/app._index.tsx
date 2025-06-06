@@ -430,16 +430,16 @@ export default function Index() {
   const submit = useSubmit();
   const shopify = useAppBridge();
 
-  // Navigation functions using window.location - most reliable for embedded apps
+  // Navigation functions using Remix navigate - proper for Remix apps
   const navigateToProductConfig = useCallback(() => {
-    console.log('Navigating to product config using window.location...');
-    window.location.href = '/app/product-config';
-  }, []);
+    console.log('Navigating to product config using Remix navigate...');
+    navigate('/app/product-config');
+  }, [navigate]);
 
   const navigateToEdit = useCallback((productId: string) => {
-    console.log('Navigating to edit product using window.location:', productId);
-    window.location.href = `/app/product-config?productId=${productId}`;
-  }, []);
+    console.log('Navigating to edit product using Remix navigate:', productId);
+    navigate(`/app/product-config?productId=${productId}`);
+  }, [navigate]);
 
   const [setupOpen, setSetupOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
@@ -451,8 +451,6 @@ export default function Index() {
     const previewUrl = `https://${shopDomain}/products/${handle}`;
     window.open(previewUrl, '_blank');
   };
-
-
 
   // Handle action data effects
   useEffect(() => {
