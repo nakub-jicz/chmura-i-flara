@@ -1,0 +1,13 @@
+{
+  "name": "External Link Button (via App)",
+  "settings": {
+    "button_style_class": {
+      "label": "Button Style",
+      "info": "Selects a base CSS class for the button, relying on your theme's styles."
+    },
+    "button_bg_color": {
+      "label": "Custom Button Background Color",
+      "info": "Optional: Overrides theme style."
+    }
+  }
+}

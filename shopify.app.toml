@@ -22,9 +22,42 @@ api_version = "2025-01"
   topics = [ "app/scopes_update" ]
   uri = "/webhooks/app/scopes_update"
 
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products"
+scopes = "read_products,write_products"
+
+[[metafields.definitions]]
+namespace = "bl_custom_button"
+key = "external_url"
+name = "External Button URL"
+description = "URL for the custom external link button."
+type = "url"
+owner_type = "PRODUCT"
+
+[[metafields.definitions]]
+namespace = "bl_custom_button"
+key = "button_text"
+name = "External Button Text"
+description = "Text to display on the custom external link button."
+type = "single_line_text_field"
+owner_type = "PRODUCT"
+
+[[metafields.definitions]]
+namespace = "bl_custom_button"
+key = "is_enabled"
+name = "Enable External Button"
+description = "Enable this custom button for the product."
+type = "boolean"
+owner_type = "PRODUCT"
+
+[[metafields.definitions]]
+namespace = "bl_custom_button"
+key = "hide_atc"
+name = "Hide Add to Cart Button"
+description = "Hide the original Add to Cart button if external button is enabled."
+type = "boolean"
+owner_type = "PRODUCT"
 
 [auth]
 redirect_urls = [
@@ -32,6 +65,8 @@ redirect_urls = [
   "https://cloudflare-workers-app.jakub-okseniuk.workers.dev/auth/shopify/callback",
   "https://cloudflare-workers-app.jakub-okseniuk.workers.dev/api/auth/callback"
 ]
+
+
 
 [pos]
 embedded = false

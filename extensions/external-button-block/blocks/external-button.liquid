@@ -1,0 +1,368 @@
+{% comment %} --- External Button Block --- {% endcomment %}
+{% comment %} Blok do wyświetlania zewnętrznych przycisków afiliacyjnych {% endcomment %}
+
+{% comment %} --- Pobieranie wartości Metafields --- {% endcomment %}
+{% assign ns = "bl_custom_button" %}
+
+{% comment %} --- Support both old and new format --- {% endcomment %}
+{% assign mf_external_links = product.metafields[ns].external_links %}
+{% assign mf_hide_atc = product.metafields[ns].hide_atc %}
+
+{% comment %} --- Legacy format support --- {% endcomment %}
+{% assign mf_external_url = product.metafields[ns].external_url %}
+{% assign mf_button_text = product.metafields[ns].button_text %}
+{% assign mf_is_enabled = product.metafields[ns].is_enabled %}
+
+{% comment %} --- Check for links --- {% endcomment %}
+{% assign has_new_format = false %}
+{% assign has_legacy_format = false %}
+
+{% if mf_external_links.value != blank %}
+  {% assign has_new_format = true %}
+{% endif %}
+
+{% if mf_external_url.value != blank and mf_button_text.value != blank %}
+  {% assign legacy_enabled = false %}
+  {% if mf_is_enabled.value == true or mf_is_enabled.value == "true" %}
+    {% assign legacy_enabled = true %}
+    {% assign has_legacy_format = true %}
+  {% endif %}
+{% endif %}
+
+{% comment %} --- Debug informacje (tylko dla administratorów) --- {% endcomment %}
+{% if request.design_mode %}
+  <div class="external-button-debug" style="background: #f0f8ff; border: 1px solid #0066cc; padding: 10px; margin: 10px 0; font-size: 12px; border-radius: 4px;">
+    <strong>🔧 Debug informacje (widoczne tylko w edytorze):</strong><br>
+    • Produkt ID: {{ product.id }}<br>
+    • New format (external_links): {{ mf_external_links.value | default: "BRAK" }}<br>
+    • Legacy URL: {{ mf_external_url.value | default: "BRAK" }}<br>
+    • Legacy Text: {{ mf_button_text.value | default: "BRAK" }}<br>
+    • Legacy Enabled: {{ mf_is_enabled.value | default: "false" }}<br>
+    • Hide ATC: {{ mf_hide_atc.value | default: "false" }}<br>
+    • Has new format: {{ has_new_format }}<br>
+    • Has legacy format: {{ has_legacy_format }}<br>
+    • <em>Czas: {{ "now" | date: "%H:%M:%S" }}</em>
+  </div>
+{% endif %}
+
+{% if has_new_format %}
+  {% comment %} --- New format: Use external_links JSON directly --- {% endcomment %}
+  <div class="custom-external-button-container" 
+       data-product-id="{{ product.id }}"
+       data-atc-override-selector="{{ block.settings.atc_selector_override | escape }}"
+       data-hide-atc="{{ mf_hide_atc.value }}"
+       data-external-links="{{ mf_external_links.value | json | escape }}"
+       {{ block.shopify_attributes }}>
+    
+    {% comment %} --- Buttons will be rendered by JavaScript --- {% endcomment %}
+    <div id="external-buttons-{{ product.id }}" class="external-buttons-container"></div>
+    
+    {% comment %} --- Debug script for JSON data --- {% endcomment %}
+    {% if request.design_mode %}
+      <div class="external-links-debug" style="background: #e8f5e8; border: 1px solid #4caf50; padding: 10px; margin: 10px 0; font-size: 12px; border-radius: 4px;">
+        <strong>🔍 JSON Debug (tylko w edytorze):</strong><br>
+        • Raw JSON: {{ mf_external_links.value }}<br>
+        • JSON escaped: {{ mf_external_links.value | json | escape }}<br>
+        • Product ID dla JS: {{ product.id }}<br>
+        • Target div ID: external-buttons-{{ product.id }}<br>
+      </div>
+    <script>
+        console.log('[Clearify Debug] Product {{ product.id }} JSON data:', {{ mf_external_links.value | json }});
+        console.log('[Clearify Debug] Container element:', document.querySelector('[data-product-id="{{ product.id }}"]'));
+        console.log('[Clearify Debug] Target div:', document.querySelector('#external-buttons-{{ product.id }}'));
+    </script>
+  {% endif %}
+  </div>
+
+{% elsif has_legacy_format %}
+  {% comment %} --- Legacy format: single button --- {% endcomment %}
+  <div class="custom-external-button-container" 
+       data-product-id="{{ product.id }}"
+       data-atc-override-selector="{{ block.settings.atc_selector_override | escape }}"
+       data-hide-atc="{{ mf_hide_atc.value }}"
+       {{ block.shopify_attributes }}>
+    
+    <button type="button" 
+            class="external-link-button btn {{ block.settings.button_style_class | default: 'product-form__cart-submit button button--full-width button--secondary' }}"
+            data-external-url="{{ mf_external_url.value | escape }}"
+            onclick="CustomButtonScript.handleExternalClick(this)"
+            style="
+              {% if block.settings.button_bg_color != blank %}background-color: {{ block.settings.button_bg_color }} !important;{% endif %}
+              {% if block.settings.button_text_color != blank %}color: {{ block.settings.button_text_color }} !important;{% endif %}
+              {% if block.settings.button_width != blank %}width: {{ block.settings.button_width }};{% else %}width: 100%;{% endif %}
+              {% if block.settings.button_padding != blank %}padding: {{ block.settings.button_padding }};{% else %}padding: 1.5rem 2rem;{% endif %}
+              {% if block.settings.button_margin != blank %}margin: {{ block.settings.button_margin }};{% else %}margin: 1rem 0;{% endif %}
+              {% if block.settings.button_border_radius != blank %}border-radius: {{ block.settings.button_border_radius }};{% else %}border-radius: var(--buttons-radius-outset);{% endif %}
+              font-size: 1.4rem;
+              font-weight: 500;
+              letter-spacing: 0.1rem;
+              line-height: 1.2;
+              text-transform: uppercase;
+              text-decoration: none;
+              cursor: pointer;
+              border: 0.1rem solid transparent;
+              transition: all 0.15s ease-in-out;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 4.4rem;
+              position: relative;
+            ">
+      <span class="button-text" style="display: flex; align-items: center; justify-content: center;">
+        {{ mf_button_text.value }}
+        {% if block.settings.show_external_icon %}
+          <svg style="width: 1.8rem; height: 1.8rem; margin-left: 0.8rem; fill: currentColor;" viewBox="0 0 24 24">
+            <path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" />
+          </svg>
+        {% endif %}
+      </span>
+    </button>
+
+    {% comment %} --- Komunikat o śledzeniu (opcjonalny) --- {% endcomment %}
+    {% if block.settings.show_tracking_notice %}
+      <small class="external-link-notice" style="display: block; margin-top: 5px; color: #666; font-size: 0.8em;">
+        {{ block.settings.tracking_notice_text | default: "Link afiliacyjny - może generować prowizję" }}
+      </small>
+    {% endif %}
+  </div>
+
+{% elsif request.design_mode %}
+  {% comment %} --- Komunikat w edytorze motywu --- {% endcomment %}
+  <div class="external-button-placeholder" style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; text-align: center;">
+    <h4 style="margin: 0 0 10px 0; color: #856404;">⚙️ Zewnętrzny przycisk nie jest skonfigurowany</h4>
+    
+    <p style="margin: 5px 0; color: #856404;">
+              <strong>Krok 1:</strong> Przejdź do aplikacji "DC External Links" i skonfiguruj zewnętrzne linki dla tego produktu.
+    </p>
+    
+    <p style="margin: 10px 0 5px 0; font-size: 0.9em; color: #856404;">
+      <strong>Instrukcja:</strong><br>
+              1. Zainstaluj aplikację "DC External Links"<br>
+      2. Skonfiguruj produkt w aplikacji<br>
+      3. Włącz przynajmniej jeden link<br>
+      4. Ten komunikat zniknie po konfiguracji
+    </p>
+    
+    <div style="margin-top: 10px;">
+      <a href="/admin/apps" 
+         style="background: #007bff; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; display: inline-block;">
+        Otwórz aplikacje
+      </a>
+    </div>
+  </div>
+
+{% else %}
+  {% comment %} --- Ukryty komentarz dla debugowania --- {% endcomment %}
+  <!-- External button: disabled or not configured for product {{ product.id }} -->
+{% endif %}
+
+{% comment %} --- Ładowanie skryptu --- {% endcomment %}
+<script src="{{ 'custom_button.js' | asset_url }}" defer></script>
+
+{% comment %} --- Style CSS --- {% endcomment %}
+<style>
+  .external-link-button {
+    /* Ensure consistent styling with Shopify buttons */
+    box-sizing: border-box;
+    background: rgb(var(--color-button));
+    color: rgb(var(--color-button-text));
+    border: 0.1rem solid rgb(var(--color-button));
+  }
+  
+  .external-link-button:not([disabled]):hover {
+    background: rgb(var(--color-button-hover, var(--color-button)));
+    color: rgb(var(--color-button-text-hover, var(--color-button-text)));
+    border-color: rgb(var(--color-button-hover, var(--color-button)));
+    transform: translateY(-0.1rem);
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+  }
+  
+  .external-link-button:active {
+    transform: translateY(0);
+    box-shadow: none;
+  }
+  
+  .external-link-button:focus {
+    outline: 0.2rem solid rgb(var(--color-outline-button));
+    outline-offset: 0.3rem;
+    box-shadow: 0 0 0 0.3rem rgb(var(--color-background)),
+                0 0 0.5rem 0.4rem rgb(var(--color-outline-button));
+  }
+  
+  /* Alternative styling if theme doesn't have CSS variables */
+  .external-link-button.button--secondary {
+    background: transparent;
+    color: rgb(var(--color-foreground));
+    border: 0.1rem solid rgb(var(--color-foreground));
+  }
+  
+  .external-link-button.button--secondary:not([disabled]):hover {
+    background: rgb(var(--color-foreground));
+    color: rgb(var(--color-background));
+  }
+  
+  .external-button-debug {
+    font-family: monospace;
+    font-size: 1.2rem;
+    line-height: 1.4;
+  }
+  
+  .external-button-placeholder {
+    max-width: 50rem;
+    margin: 2rem auto;
+    font-size: 1.4rem;
+    line-height: 1.6;
+  }
+  
+  .external-button-placeholder h4 {
+    font-size: 1.8rem;
+    font-weight: 600;
+  }
+  
+  .external-button-placeholder a {
+    font-size: 1.4rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1rem;
+    min-height: 4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease-in-out;
+  }
+  
+  .external-button-placeholder a:hover {
+    transform: translateY(-0.1rem);
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Responsywność */
+  @media screen and (max-width: 749px) {
+    .external-link-button {
+      font-size: 1.3rem;
+      padding: 1.3rem 1.8rem !important;
+      min-height: 4rem;
+    }
+    
+    .external-link-button svg {
+      width: 1.6rem !important;
+      height: 1.6rem !important;
+      margin-left: 0.6rem !important;
+    }
+  }
+  
+  @media screen and (max-width: 550px) {
+    .external-link-button {
+      font-size: 1.2rem;
+      padding: 1.2rem 1.5rem !important;
+      min-height: 3.8rem;
+    }
+  }
+  
+  /* Accessibility improvements */
+  @media (prefers-reduced-motion: reduce) {
+    .external-link-button {
+      transition: none;
+    }
+  }
+  
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    .external-link-button {
+      border-width: 0.2rem;
+    }
+  }
+</style>
+
+{% schema %}
+{
+  "name": "External Button",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Wygląd przycisku"
+    },
+    {
+      "type": "text",
+      "id": "button_style_class",
+      "label": "Klasa CSS przycisku",
+      "default": "product-form__cart-submit button button--full-width button--secondary",
+      "info": "Ustaw klasę CSS zgodną z Twoim motywem (np. button button--primary, product-form__cart-submit)"
+    },
+    {
+      "type": "color",
+      "id": "button_bg_color",
+      "label": "Kolor tła",
+      "info": "Opcjonalne: nadpisuje styl motywu"
+    },
+    {
+      "type": "color",
+      "id": "button_text_color",
+      "label": "Kolor tekstu",
+      "info": "Opcjonalne: nadpisuje kolor tekstu motywu"
+    },
+    {
+      "type": "text",
+      "id": "button_width",
+      "label": "Szerokość przycisku",
+      "default": "100%",
+      "info": "CSS width (np. 100%, 200px, auto). Ustaw 100% dla pełnej szerokości."
+    },
+    {
+      "type": "text",
+      "id": "button_padding",
+      "label": "Padding",
+      "default": "1.5rem 2rem",
+      "info": "CSS padding (np. 1.5rem 2rem, 15px 20px)"
+    },
+    {
+      "type": "text",
+      "id": "button_margin",
+      "label": "Margines",
+      "default": "1rem 0",
+      "info": "CSS margin (np. 1rem 0, 10px 0)"
+    },
+    {
+      "type": "text",
+      "id": "button_border_radius",
+      "label": "Zaokrąglenie rogów",
+      "default": "var(--buttons-radius-outset)",
+      "info": "CSS border-radius (np. 0.4rem, var(--buttons-radius-outset))"
+    },
+    {
+      "type": "header",
+      "content": "Dodatkowe opcje"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_external_icon",
+      "label": "Pokaż ikonę zewnętrznego linku",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_tracking_notice",
+      "label": "Pokaż informację o linku afiliacyjnym",
+      "default": false
+    },
+    {
+      "type": "text",
+      "id": "tracking_notice_text",
+      "label": "Tekst informacji",
+      "default": "Link afiliacyjny - może generować prowizję",
+      "info": "Wyświetlany pod przyciskiem jeśli włączone powyżej"
+    },
+    {
+      "type": "header",
+      "content": "Zaawansowane"
+    },
+    {
+      "type": "text",
+      "id": "atc_selector_override",
+      "label": "Niestandardowy selektor ATC",
+      "info": "Zaawansowane: alternatywny selektor do ukrywania przycisków dodawania do koszyka"
+    }
+  ]
+}
+{% endschema %}
