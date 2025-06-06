@@ -196,6 +196,9 @@ interface ExpandedProduct {
 }
 
 export const action = async ({ request, context }: ActionFunctionArgs) => {
+  console.log('=== ACTION CALLED ===');
+  console.log('Request method:', request.method);
+  console.log('Request URL:', request.url);
   console.log('=== ACTION START ===');
 
   const { admin, session } = await shopify(context).authenticate.admin(request);
@@ -267,6 +270,14 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         externalLinksCount: externalLinks.length
       });
       console.log('=== SAVE ACTION PARSING COMPLETE ===');
+      console.log('Final parsed externalLinks array:', externalLinks.map((link, idx) => ({
+        index: idx,
+        url: link.url,
+        text: link.text,
+        enabled: link.enabled,
+        enabled_type: typeof link.enabled,
+        enabled_toString: String(link.enabled)
+      })));
       const METAFIELD_NAMESPACE = "bl_custom_button";
 
       // Get existing metafields to know which ones to update vs create
@@ -1161,6 +1172,13 @@ export default function Index() {
       const fieldValue = formData.get(fieldName);
       console.log(`Checkbox field ${fieldName}: value="${fieldValue}", original enabled=${link.enabled}`);
     });
+
+    // Test JSON stringification before submit
+    const testJsonString = JSON.stringify(expandedProduct.externalLinks);
+    console.log('JSON string that will be sent:', testJsonString);
+    const testParsedBack = JSON.parse(testJsonString);
+    console.log('JSON parsed back test:', testParsedBack);
+
     console.log('=== END SAVE ===');
 
     // Get the form element and submit it directly
@@ -1172,8 +1190,17 @@ export default function Index() {
         const field = form.querySelector(`[name="${key}"]`) as HTMLInputElement;
         if (field) {
           if (field.type === 'checkbox') {
+            const oldChecked = field.checked;
             field.checked = value === 'on';
-            console.log(`Updated checkbox ${key}: checked=${field.checked}, value was="${value}"`);
+            console.log(`Updated checkbox ${key}: oldChecked=${oldChecked}, newChecked=${field.checked}, formDataValue="${value}"`);
+
+            // Double-check that the checkbox was actually updated
+            setTimeout(() => {
+              const recheckField = form.querySelector(`[name="${key}"]`) as HTMLInputElement;
+              if (recheckField) {
+                console.log(`Checkbox ${key} recheck after DOM update: checked=${recheckField.checked}`);
+              }
+            }, 10);
           } else {
             field.value = value as string;
             console.log(`Updated field ${key}: value="${field.value}"`);
@@ -1794,6 +1821,13 @@ export default function Index() {
                                                   console.log(`Current enabled state: ${link.enabled}`);
                                                   console.log(`New checked state: ${checked}`);
                                                   console.log(`Checkbox render checked state: ${link.enabled}`);
+                                                  console.log(`About to call updateExternalLink with:`, {
+                                                    productId: product.id,
+                                                    index,
+                                                    field: "enabled",
+                                                    value: checked,
+                                                    valueType: typeof checked
+                                                  });
                                                   updateExternalLink(product.id, index, "enabled", checked);
                                                   console.log(`=== END CHECKBOX CHANGE ===`);
                                                 }}
@@ -1852,7 +1886,12 @@ export default function Index() {
                               <InlineStack gap="300" align="start">
                                 <Button
                                   variant="primary"
-                                  onClick={() => saveProductConfiguration(product.id)}
+                                  onClick={() => {
+                                    console.log(`=== SAVE BUTTON CLICKED ===`);
+                                    console.log(`Product ID: ${product.id}`);
+                                    console.log(`Current expanded state:`, expandedProducts[product.id]);
+                                    saveProductConfiguration(product.id);
+                                  }}
                                   loading={expandedProducts[product.id]?.isSaving}
                                   disabled={expandedProducts[product.id]?.isSaving}
                                 >
