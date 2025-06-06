@@ -1163,7 +1163,33 @@ export default function Index() {
     });
     console.log('=== END SAVE ===');
 
-    submit(formData, { method: "post" });
+    // Get the form element and submit it directly
+    const form = formRefs.current[productId];
+    if (form) {
+      console.log('Found form element, updating DOM and submitting form directly');
+      // Update the form's DOM values with our FormData
+      Object.entries(Object.fromEntries(formData.entries())).forEach(([key, value]) => {
+        const field = form.querySelector(`[name="${key}"]`) as HTMLInputElement;
+        if (field) {
+          if (field.type === 'checkbox') {
+            field.checked = value === 'on';
+            console.log(`Updated checkbox ${key}: checked=${field.checked}, value was="${value}"`);
+          } else {
+            field.value = value as string;
+            console.log(`Updated field ${key}: value="${field.value}"`);
+          }
+        } else {
+          console.log(`Field ${key} not found in form`);
+        }
+      });
+
+      // Submit the actual form
+      form.requestSubmit();
+    } else {
+      console.log('Form element not found, using fallback submit');
+      // Fallback - use submit directly 
+      submit(formData, { method: "post" });
+    }
     shopify?.toast?.show("Saving configuration...", { duration: 2000 });
   };
 
