@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/cloudflare";
 import { json } from "@remix-run/cloudflare";
 import { Form, useNavigation, useActionData, useLoaderData, useNavigate, useSubmit } from "@remix-run/react";
@@ -778,6 +778,70 @@ export default function Index() {
   const [isLoadingPicker, setIsLoadingPicker] = useState(false);
   const [selectedProductForEdit, setSelectedProductForEdit] = useState<Product | null>(null);
 
+  // Refs to forms for direct DOM manipulation
+  const formRefs = useRef<{ [key: string]: HTMLFormElement | null }>({});
+
+  // Function to update DOM form values so Shopify Save Bar can detect changes
+  const updateFormDOMValues = useCallback((productId: string) => {
+    const form = formRefs.current[productId];
+    const expandedProduct = expandedProducts[productId];
+
+    if (!form || !expandedProduct) {
+      console.log(`Cannot update DOM values: form=${!!form}, expandedProduct=${!!expandedProduct}`);
+      return;
+    }
+
+    console.log(`=== UPDATING DOM VALUES FOR ${productId} ===`);
+
+    try {
+      // Update linkCount
+      const linkCountField = form.querySelector('input[name="linkCount"]') as HTMLInputElement;
+      if (linkCountField) {
+        linkCountField.value = expandedProduct.externalLinks.length.toString();
+        console.log(`Updated linkCount to: ${linkCountField.value}`);
+      }
+
+      // Update each link's fields
+      expandedProduct.externalLinks.forEach((link, index) => {
+        // Update URL field
+        const urlField = form.querySelector(`input[name="link_${index}_url"]`) as HTMLInputElement;
+        if (urlField) {
+          urlField.value = link.url || "";
+          console.log(`Updated link_${index}_url to: "${urlField.value}"`);
+        }
+
+        // Update text field
+        const textField = form.querySelector(`input[name="link_${index}_text"]`) as HTMLInputElement;
+        if (textField) {
+          textField.value = link.text || "";
+          console.log(`Updated link_${index}_text to: "${textField.value}"`);
+        }
+
+        // Update checkbox field
+        const enabledField = form.querySelector(`input[name="link_${index}_enabled"]`) as HTMLInputElement;
+        if (enabledField) {
+          enabledField.checked = link.enabled;
+          console.log(`Updated link_${index}_enabled to: ${enabledField.checked}`);
+
+          // Trigger change event so Shopify Save Bar detects it
+          enabledField.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+
+      // Update hideAtc checkbox
+      const hideAtcField = form.querySelector('input[name="hideAtc"]') as HTMLInputElement;
+      if (hideAtcField) {
+        hideAtcField.checked = expandedProduct.hideAtc;
+        console.log(`Updated hideAtc to: ${hideAtcField.checked}`);
+        hideAtcField.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+
+      console.log(`=== DOM VALUES UPDATED FOR ${productId} ===`);
+    } catch (error) {
+      console.error(`Error updating DOM values for ${productId}:`, error);
+    }
+  }, [expandedProducts]);
+
 
 
 
@@ -1050,6 +1114,9 @@ export default function Index() {
       console.log(`=== END UPDATE EXTERNAL LINK ===`);
       return newState;
     });
+
+    // Update DOM values after state change
+    setTimeout(() => updateFormDOMValues(productId), 0);
   };
 
   // Add new external link
@@ -1272,7 +1339,7 @@ export default function Index() {
 
                     {/* Configuration for new product */}
                     {expandedProducts[selectedProductForEdit.id]?.isExpanded && (
-                      <Form method="post" data-save-bar>
+                      <Form method="post" data-save-bar ref={(el) => formRefs.current[selectedProductForEdit.id] = el}>
                         <input type="hidden" name="actionType" value="save" />
                         <input type="hidden" name="productId" value={selectedProductForEdit.id} />
                         <input type="hidden" name="linkCount" value={expandedProducts[selectedProductForEdit.id]?.externalLinks?.length || 0} />
@@ -1322,7 +1389,9 @@ export default function Index() {
                                               label="Destination URL"
                                               name={`link_${index}_url`}
                                               value={link.url || ""}
-                                              onChange={(value) => updateExternalLink(selectedProductForEdit.id, index, "url", value)}
+                                              onChange={(value) => {
+                                                updateExternalLink(selectedProductForEdit.id, index, "url", value);
+                                              }}
                                               autoComplete="off"
                                               placeholder="https://amazon.com/product/..."
                                               helpText="Full URL where the button should redirect"
@@ -1332,7 +1401,9 @@ export default function Index() {
                                               label="Button text"
                                               name={`link_${index}_text`}
                                               value={link.text || ""}
-                                              onChange={(value) => updateExternalLink(selectedProductForEdit.id, index, "text", value)}
+                                              onChange={(value) => {
+                                                updateExternalLink(selectedProductForEdit.id, index, "text", value);
+                                              }}
                                               autoComplete="off"
                                               placeholder="Buy on Amazon"
                                               helpText="Text displayed on the button"
@@ -1392,6 +1463,7 @@ export default function Index() {
                                         hideAtc: checked
                                       }
                                     }));
+                                    setTimeout(() => updateFormDOMValues(selectedProductForEdit.id), 0);
                                   }}
                                   helpText="WARNING: This feature may not work with all themes. Test before publishing."
                                 />
@@ -1506,7 +1578,7 @@ export default function Index() {
 
                       {/* Expanded configuration section */}
                       {expandedProducts[product.id]?.isExpanded && (
-                        <Form method="post" data-save-bar>
+                        <Form method="post" data-save-bar ref={(el) => formRefs.current[product.id] = el}>
                           <input type="hidden" name="actionType" value="save" />
                           <input type="hidden" name="productId" value={product.id} />
                           <input type="hidden" name="linkCount" value={expandedProducts[product.id]?.externalLinks?.length || 0} />
@@ -1564,7 +1636,9 @@ export default function Index() {
                                                 label="Destination URL"
                                                 name={`link_${index}_url`}
                                                 value={link.url || ""}
-                                                onChange={(value) => updateExternalLink(product.id, index, "url", value)}
+                                                onChange={(value) => {
+                                                  updateExternalLink(product.id, index, "url", value);
+                                                }}
                                                 autoComplete="off"
                                                 placeholder="https://amazon.com/product/..."
                                                 helpText="Full URL where the button should redirect"
@@ -1574,7 +1648,9 @@ export default function Index() {
                                                 label="Button text"
                                                 name={`link_${index}_text`}
                                                 value={link.text || ""}
-                                                onChange={(value) => updateExternalLink(product.id, index, "text", value)}
+                                                onChange={(value) => {
+                                                  updateExternalLink(product.id, index, "text", value);
+                                                }}
                                                 autoComplete="off"
                                                 placeholder="Buy on Amazon"
                                                 helpText="Text displayed on the button"
@@ -1634,6 +1710,7 @@ export default function Index() {
                                           hideAtc: checked
                                         }
                                       }));
+                                      setTimeout(() => updateFormDOMValues(product.id), 0);
                                     }}
                                     helpText="WARNING: This feature may not work with all themes. Test before publishing."
                                   />
