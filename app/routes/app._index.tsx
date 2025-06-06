@@ -189,7 +189,12 @@ interface ExpandedProduct {
 }
 
 export const action = async ({ request, context }: ActionFunctionArgs) => {
-  const { admin } = await shopify(context).authenticate.admin(request);
+  console.log('=== ACTION START ===');
+
+  const { admin, session } = await shopify(context).authenticate.admin(request);
+  console.log('Admin instance available:', !!admin);
+  console.log('Session shop:', session.shop);
+  console.log('Session scopes:', session.scope);
 
   try {
     const formData = await request.formData();
@@ -197,6 +202,7 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
     const productId = formData.get("productId");
 
     console.log('Action called with:', { actionType, productId });
+    console.log('Full form data:', Object.fromEntries(formData.entries()));
 
     if (actionType === "save" && productId) {
       // Save product configuration
@@ -460,9 +466,15 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
 export const loader = async ({ request, context }: LoaderFunctionArgs) => {
   const { admin, session } = await shopify(context).authenticate.admin(request);
 
+  console.log('=== LOADER START ===');
+  console.log('Session shop:', session.shop);
+  console.log('Admin instance available:', !!admin);
+  console.log('Context:', Object.keys(context || {}));
+
   // Pobierz dane o aktywnym motywie
   let themeEditorUrl: string | null = null;
   try {
+    console.log('=== FETCHING THEMES ===');
     const themeQuery = `
       query getThemes {
         themes(first: 10) {
@@ -476,7 +488,11 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
     `;
 
     const themeResponse = await admin.graphql(themeQuery);
+    console.log('Theme response status:', themeResponse.status);
+    console.log('Theme response headers:', Object.fromEntries(themeResponse.headers.entries()));
+
     const themeData = await themeResponse.json() as GraphQLResponse<ThemesQueryResponse>;
+    console.log('Theme data:', JSON.stringify(themeData, null, 2));
 
     if (themeData.errors) {
       console.error("Theme GraphQL errors:", themeData.errors);
@@ -486,10 +502,16 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
         // Generuj URL do edytora motywu - usuwamy "gid://shopify/Theme/" z ID
         const themeId = activeTheme.id.replace('gid://shopify/Theme/', '');
         themeEditorUrl = `https://${session.shop}/admin/themes/${themeId}/editor`;
+        console.log('Generated theme editor URL:', themeEditorUrl);
       }
     }
   } catch (error) {
     console.error("Error fetching theme data:", error);
+    // Więcej szczegółowych informacji o błędzie
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     // Fallback - użyj ogólnego URL do motywów
     themeEditorUrl = `https://${session.shop}/admin/themes`;
   }
@@ -497,6 +519,7 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
   // Pobierz produkty z skonfigurowanymi zewnętrznymi linkami
   let configuredProducts: Product[] = [];
   try {
+    console.log('=== FETCHING PRODUCTS ===');
     const productsQuery = `
       query getProductsWithMetafields($namespace: String!) {
         products(first: 100) {
@@ -522,16 +545,29 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
       }
     `;
 
-    console.log("Fetching products with metafields...");
+    console.log("GraphQL Query:", productsQuery);
+    console.log("Variables:", { namespace: "bl_custom_button" });
+
     const productsResponse = await admin.graphql(productsQuery, {
       variables: { namespace: "bl_custom_button" }
     });
+
+    console.log('Products response status:', productsResponse.status);
+    console.log('Products response headers:', Object.fromEntries(productsResponse.headers.entries()));
 
     const productsData = await productsResponse.json() as GraphQLResponse<ProductsQueryResponse>;
     console.log("Products response:", JSON.stringify(productsData, null, 2));
 
     if (productsData.errors) {
       console.error("Products GraphQL errors:", productsData.errors);
+      // Loguj szczegółowe informacje o błędach
+      productsData.errors.forEach((error, index) => {
+        console.error(`Error ${index + 1}:`, {
+          message: error.message,
+          locations: error.locations,
+          path: error.path
+        });
+      });
     } else if (productsData.data?.products?.nodes) {
       const allProducts = productsData.data.products.nodes;
       console.log("Total products found:", allProducts.length);
@@ -595,9 +631,22 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
     console.log("Final configured products:", configuredProducts);
   } catch (error) {
     console.error("Error fetching configured products:", error);
+    // Więcej szczegółowych informacji o błędzie
+    if (error instanceof Error) {
+      console.error('Products error message:', error.message);
+      console.error('Products error stack:', error.stack);
+    }
+    if (error instanceof Response) {
+      console.error('Response error status:', error.status);
+      console.error('Response error statusText:', error.statusText);
+    }
   }
 
-  return json({ themeEditorUrl, configuredProducts, shopDomain: session.shop });
+  console.log('=== LOADER END ===');
+  const result = { themeEditorUrl, configuredProducts, shopDomain: session.shop };
+  console.log('Returning from loader:', result);
+
+  return json(result);
 };
 
 export default function Index() {
@@ -611,9 +660,17 @@ export default function Index() {
 
   // Debug App Bridge availability
   useEffect(() => {
+    console.log('=== APP BRIDGE DEBUG ===');
     console.log('App Bridge instance:', shopify);
+    console.log('App Bridge type:', typeof shopify);
     console.log('Window shopify:', window.shopify);
     console.log('App Bridge methods available:', Object.keys(shopify || {}));
+
+    // Test specific methods
+    if (shopify) {
+      console.log('resourcePicker available:', typeof shopify.resourcePicker);
+      console.log('resourcePicker type:', typeof shopify.resourcePicker);
+    }
 
     // Check URL params for debugging
     const urlParams = new URLSearchParams(window.location.search);
@@ -624,6 +681,17 @@ export default function Index() {
     // Check if we're running in an iframe (embedded context)
     console.log('Is in iframe:', window.parent !== window);
     console.log('User agent:', navigator.userAgent);
+
+    // Check if we have CORS issues
+    console.log('Document origin:', document.location.origin);
+    console.log('Referrer:', document.referrer);
+
+    // Test network connectivity
+    fetch(window.location.origin + '/favicon.ico')
+      .then(response => console.log('Network test - favicon fetch:', response.status))
+      .catch(error => console.error('Network test - favicon fetch failed:', error));
+
+    console.log('=== END APP BRIDGE DEBUG ===');
   }, [shopify]);
 
   // State for one-page functionality
@@ -1019,16 +1087,21 @@ export default function Index() {
                   <Badge tone={configuredProducts.length > 0 ? "success" : "info"}>
                     {`${configuredProducts.length} configured`}
                   </Badge>
-                  <Button
-                    variant="primary"
-                    size="medium"
-                    onClick={handleOpenProductPicker}
-                    loading={isLoadingPicker}
-                    disabled={isLoadingPicker}
-                    icon={ProductIcon}
-                  >
-                    {isLoadingPicker ? "Selecting..." : "Add Product"}
-                  </Button>
+                  <InlineStack gap="300" align="center">
+                    <Button
+                      onClick={handleOpenProductPicker}
+                      loading={isLoadingPicker}
+                      variant="primary"
+                      disabled={isLoadingPicker}
+                    >
+                      {isLoadingPicker ? 'Loading...' : 'Add Product'}
+                    </Button>
+
+                    {/* Help text for troubleshooting */}
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Having trouble? Make sure to disable ad blockers for this page.
+                    </Text>
+                  </InlineStack>
                 </InlineStack>
               </InlineStack>
 
