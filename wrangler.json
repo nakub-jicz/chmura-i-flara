@@ -1,0 +1,19 @@
+{
+    "name": "cloudflare-workers-app",
+    "compatibility_date": "2024-11-11",
+    "main": "./server.ts",
+    "assets": {
+      "directory": "./build/client"
+    },
+    "observability": {
+      "enabled": true
+    },
+    "upload_source_maps": false,
+    "compatibility_flags": [
+      "nodejs_compat_v2"
+    ],
+    "vars": {
+      "SHOPIFY_APP_URL": "https://cloudflare-workers-app.ilias-had.workers.dev",
+      "SCOPES": "writes_products"
+    }
+  }
