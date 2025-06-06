@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Form, useNavigation, useActionData, useLoaderData, useNavigate, useSubmit } from "@remix-run/react";
+import { Form, useNavigation, useActionData, useLoaderData, useNavigate, useSubmit, Link } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -441,46 +441,7 @@ export default function Index() {
     window.open(previewUrl, '_blank');
   };
 
-  const handleConfigureProducts = () => {
-    console.log('Navigating to product-config...');
-    console.log('App Bridge instance:', shopify);
-    try {
-      // In embedded apps, both approaches might work
-      console.log('Trying navigate...');
-      navigate("/app/product-config");
 
-      // If navigate doesn't work, use timeout fallback
-      setTimeout(() => {
-        if (window.location.pathname !== "/app/product-config") {
-          console.log('Navigate failed, using window.location fallback...');
-          window.location.href = "/app/product-config";
-        }
-      }, 100);
-    } catch (error) {
-      console.error('Navigation error:', error);
-      window.location.href = "/app/product-config";
-    }
-  };
-
-  const handleEditProduct = (productId: string) => {
-    console.log('Editing product:', productId);
-    const targetUrl = `/app/product-config?productId=${productId}`;
-    try {
-      console.log('Trying navigate to:', targetUrl);
-      navigate(targetUrl);
-
-      // Fallback timeout check
-      setTimeout(() => {
-        if (!window.location.href.includes('product-config')) {
-          console.log('Navigate failed, using window.location fallback...');
-          window.location.href = targetUrl;
-        }
-      }, 100);
-    } catch (error) {
-      console.error('Navigation error:', error);
-      window.location.href = targetUrl;
-    }
-  };
 
   // Handle action data effects
   useEffect(() => {
@@ -555,7 +516,10 @@ export default function Index() {
       title="DC External Links"
       primaryAction={{
         content: "Configure products",
-        onAction: handleConfigureProducts,
+        onAction: () => {
+          console.log('Primary action clicked - trying navigate...');
+          navigate("product-config");
+        },
         icon: ProductIcon
       }}
     >
@@ -584,14 +548,15 @@ export default function Index() {
                   <Badge tone={configuredProducts.length > 0 ? "success" : "info"}>
                     {`${configuredProducts.length} configured`}
                   </Badge>
-                  <Button
-                    variant="primary"
-                    size="medium"
-                    onClick={handleConfigureProducts}
-                    icon={ProductIcon}
-                  >
-                    Add Product
-                  </Button>
+                  <Link to="product-config" style={{ textDecoration: 'none' }}>
+                    <Button
+                      variant="primary"
+                      size="medium"
+                      icon={ProductIcon}
+                    >
+                      Add Product
+                    </Button>
+                  </Link>
                 </InlineStack>
               </InlineStack>
 
@@ -650,14 +615,15 @@ export default function Index() {
                         </InlineStack>
 
                         <InlineStack gap="200">
-                          <Button
-                            variant="secondary"
-                            size="medium"
-                            onClick={() => handleEditProduct(product.id)}
-                            icon={SettingsIcon}
-                          >
-                            Edit
-                          </Button>
+                          <Link to={`product-config?productId=${product.id}`} style={{ textDecoration: 'none' }}>
+                            <Button
+                              variant="secondary"
+                              size="medium"
+                              icon={SettingsIcon}
+                            >
+                              Edit
+                            </Button>
+                          </Link>
                           <Button
                             variant="secondary"
                             size="medium"
@@ -686,13 +652,14 @@ export default function Index() {
                     No products configured yet. Start by configuring your first product.
                   </Text>
                   <InlineStack gap="200">
-                    <Button
-                      variant="primary"
-                      icon={ProductIcon}
-                      onClick={handleConfigureProducts}
-                    >
-                      Configure first product
-                    </Button>
+                    <Link to="product-config" style={{ textDecoration: 'none' }}>
+                      <Button
+                        variant="primary"
+                        icon={ProductIcon}
+                      >
+                        Configure first product
+                      </Button>
+                    </Link>
                   </InlineStack>
                 </BlockStack>
               )}
@@ -757,12 +724,13 @@ export default function Index() {
                         Set the destination URL and button text for each product.
                       </Text>
                       <InlineStack gap="200">
-                        <Button
-                          icon={ProductIcon}
-                          onClick={handleConfigureProducts}
-                        >
-                          Configure products
-                        </Button>
+                        <Link to="product-config" style={{ textDecoration: 'none' }}>
+                          <Button
+                            icon={ProductIcon}
+                          >
+                            Configure products
+                          </Button>
+                        </Link>
                       </InlineStack>
                     </BlockStack>
                   </Card>

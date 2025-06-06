@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "b47fbbd7a2798bdefa342301971e612b"
-application_url = "https://cloudflare-workers-app.jakub-okseniuk.workers.dev"
+application_url = "https://steps-tp-old-precise.trycloudflare.com"
 embedded = true
 name = "Chmura i flara"
 handle = "chmura-i-flara"
@@ -28,9 +28,9 @@ scopes = "read_products,write_products"
 
 [auth]
 redirect_urls = [
-  "https://cloudflare-workers-app.jakub-okseniuk.workers.dev/auth/callback",
-  "https://cloudflare-workers-app.jakub-okseniuk.workers.dev/auth/shopify/callback",
-  "https://cloudflare-workers-app.jakub-okseniuk.workers.dev/auth/callback"
+  "https://steps-tp-old-precise.trycloudflare.com/auth/callback",
+  "https://steps-tp-old-precise.trycloudflare.com/auth/shopify/callback",
+  "https://steps-tp-old-precise.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]
