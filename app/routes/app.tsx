@@ -18,6 +18,8 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
 export default function App() {
   const { apiKey } = useLoaderData<typeof loader>();
 
+  console.log('App Bridge configured with API key:', apiKey);
+
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <NavMenu>

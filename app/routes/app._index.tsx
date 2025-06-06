@@ -115,7 +115,7 @@ interface ProductUpdateResponse {
   };
 }
 
-// Enhanced App Bridge types
+// Enhanced App Bridge types - Updated for newer API
 declare global {
   interface Window {
     shopify?: {
@@ -132,6 +132,7 @@ declare global {
       toast?: {
         show(message: string, options?: { isError?: boolean; duration?: number }): void;
       };
+      resourcePicker?: (options: any) => Promise<any>;
     };
   }
 }
@@ -608,6 +609,23 @@ export default function Index() {
   const submit = useSubmit();
   const shopify = useAppBridge();
 
+  // Debug App Bridge availability
+  useEffect(() => {
+    console.log('App Bridge instance:', shopify);
+    console.log('Window shopify:', window.shopify);
+    console.log('App Bridge methods available:', Object.keys(shopify || {}));
+
+    // Check URL params for debugging
+    const urlParams = new URLSearchParams(window.location.search);
+    console.log('URL host param:', urlParams.get('host'));
+    console.log('URL shop param:', urlParams.get('shop'));
+    console.log('Page location:', window.location.href);
+
+    // Check if we're running in an iframe (embedded context)
+    console.log('Is in iframe:', window.parent !== window);
+    console.log('User agent:', navigator.userAgent);
+  }, [shopify]);
+
   // State for one-page functionality
   const [setupOpen, setSetupOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
@@ -623,30 +641,68 @@ export default function Index() {
     window.open(previewUrl, '_blank');
   };
 
-  // Product picker function
+  // Product picker function - Updated for newer App Bridge API with fallbacks
   const handleOpenProductPicker = useCallback(async () => {
     if (isLoadingPicker) return;
 
     setIsLoadingPicker(true);
     try {
-      shopify?.toast?.show("Opening product picker...", { duration: 2000 });
+      // Check if we have access to the app bridge instance
+      if (!shopify) {
+        throw new Error("App Bridge not available - please refresh the page");
+      }
 
-      const picker = await (shopify as any).resourcePicker({
-        type: "product",
-        multiple: false,
-        showVariants: false,
-      });
+      // Show loading toast
+      if (window.shopify?.toast) {
+        window.shopify.toast.show("Opening product picker...", { duration: 2000 });
+      }
 
-      if (picker && picker.selection && picker.selection.length > 0) {
-        const selected = picker.selection[0];
-        shopify?.toast?.show(`Selected: ${selected.title}`, { duration: 3000 });
+      console.log('Attempting to open resource picker with shopify instance:', shopify);
+      console.log('Available methods on shopify:', Object.keys(shopify));
+
+      // Try different approaches for resource picker
+      let selection;
+
+      // Wait a moment for App Bridge to fully initialize
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Approach 1: Try the modern App Bridge API
+      if (typeof shopify.resourcePicker === 'function') {
+        console.log('Using App Bridge resourcePicker API');
+        selection = await shopify.resourcePicker({
+          type: "product",
+          multiple: false,
+        });
+      } else {
+        // Fallback: redirect to product selection page if picker not available
+        console.warn('Resource picker not available, redirecting to manual selection');
+        if (window.shopify?.toast) {
+          window.shopify.toast.show("Product picker not available. Please try refreshing the page or contact support.", {
+            isError: true,
+            duration: 8000
+          });
+        }
+        throw new Error("Resource picker method not available");
+      }
+
+      console.log('Resource picker returned:', selection);
+
+      if (selection && selection.length > 0) {
+        const selected = selection[0];
+
+        // Show success toast
+        if (window.shopify?.toast) {
+          window.shopify.toast.show(`Selected: ${selected.title}`, { duration: 3000 });
+        }
 
         // Create new product entry for editing
+        // Handle different types of selected resources
+        const selectedProduct = selected as any; // Type assertion for compatibility
         const newProduct: Product = {
-          id: selected.id,
-          title: selected.title,
-          handle: selected.handle,
-          featuredImage: selected.featuredImage,
+          id: selectedProduct.id,
+          title: selectedProduct.title,
+          handle: selectedProduct.handle || selectedProduct.id.split('/').pop() || '',
+          featuredImage: selectedProduct.featuredImage || selectedProduct.image,
           externalUrl: "",
           buttonText: "",
           isEnabled: false,
@@ -671,11 +727,49 @@ export default function Index() {
 
         setSelectedProductForEdit(newProduct);
       } else {
-        shopify?.toast?.show("No product selected", { duration: 2000 });
+        if (window.shopify?.toast) {
+          window.shopify.toast.show("No product selected", { duration: 2000 });
+        }
       }
     } catch (error) {
       console.error("Error selecting product:", error);
-      shopify?.toast?.show("Error selecting product", { isError: true, duration: 4000 });
+
+      // More detailed error handling for different scenarios
+      let errorMessage = "Error selecting product";
+      let detailedMessage = "";
+
+      if (error instanceof Error) {
+        if (error.message.includes("App Bridge")) {
+          errorMessage = "App Bridge not properly initialized";
+          detailedMessage = "Please refresh the page and try again.";
+        } else if (error.message.includes("permission")) {
+          errorMessage = "Insufficient permissions to access products";
+          detailedMessage = "Please ensure your user account has product access permissions.";
+        } else if (error.message.includes("network")) {
+          errorMessage = "Network error";
+          detailedMessage = "Please check your internet connection and try again.";
+        } else if (error.message.includes("not available")) {
+          errorMessage = "Product picker unavailable";
+          detailedMessage = "This may be due to Cloudflare Workers compatibility. Try refreshing the page or use manual product configuration.";
+        }
+      }
+
+      console.log('=== PROBLEM DIAGNOSTYCZNY ===');
+      console.log('Problem:', errorMessage);
+      console.log('Szczegóły:', detailedMessage);
+      console.log('App Bridge instance:', shopify);
+      console.log('Dostępne metody:', Object.keys(shopify || {}));
+      console.log('Window.shopify:', window.shopify);
+      console.log('URL params:', new URLSearchParams(window.location.search).toString());
+      console.log('===========================');
+
+      if (window.shopify?.toast) {
+        window.shopify.toast.show(`${errorMessage}. ${detailedMessage}`, { isError: true, duration: 8000 });
+      } else {
+        // Fallback to console if toast is not available
+        console.error("Failed to show error toast:", errorMessage, detailedMessage);
+        alert(`${errorMessage}\n\n${detailedMessage}\n\nSzczegóły zostały zapisane w konsoli przeglądarki (F12).`);
+      }
     } finally {
       setIsLoadingPicker(false);
     }
