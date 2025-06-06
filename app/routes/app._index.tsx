@@ -217,39 +217,31 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
       console.log('ProductId:', productId);
       console.log('All form data entries:', Object.fromEntries(formData.entries()));
 
-      const hideAtcData = formData.get("hideAtc");
-      const hideAtcHidden = formData.get("hideAtc_hidden");
-      // Use checkbox value if present, otherwise use hidden field
-      const hideAtc = hideAtcData === "on" || (hideAtcData === null && hideAtcHidden === "true");
-      console.log('Hide ATC data:', { hideAtcData, hideAtcHidden, hideAtc });
+      // Parse external links from JSON data
+      const externalLinksDataString = formData.get("externalLinksData");
+      let externalLinks: ExternalLink[] = [];
 
-      // Parse external links from form data
-      const linkCountData = formData.get("linkCount");
-      const linkCount = parseInt(linkCountData as string || "0", 10);
-      console.log('Expected link count:', linkCount);
-
-      const externalLinks: ExternalLink[] = [];
-
-      // Extract link data based on known count
-      for (let linkIndex = 0; linkIndex < linkCount; linkIndex++) {
-        const url = formData.get(`link_${linkIndex}_url`) as string || "";
-        const text = formData.get(`link_${linkIndex}_text`) as string || "";
-        const enabledData = formData.get(`link_${linkIndex}_enabled`);
-        const enabledHidden = formData.get(`link_${linkIndex}_enabled_hidden`);
-        // Use checkbox value if present, otherwise use hidden field
-        const enabled = enabledData === "on" || (enabledData === null && enabledHidden === "true");
-
-        console.log(`Link ${linkIndex}:`, { url, text, enabledData, enabledHidden, enabled });
-
-        // Add all links, even empty ones (they might be valid placeholders)
-        externalLinks.push({
-          url: url,
-          text: text,
-          enabled: enabled
+      try {
+        if (externalLinksDataString) {
+          externalLinks = JSON.parse(externalLinksDataString as string);
+        }
+      } catch (error) {
+        console.error('Error parsing external links JSON:', error);
+        return json({
+          error: "Invalid external links data format",
+          success: false
         });
       }
 
-      console.log('Final external links:', externalLinks);
+      // Parse hide ATC data
+      const hideAtcDataString = formData.get("hideAtcData");
+      const hideAtc = hideAtcDataString === "true";
+
+      console.log('Parsed data:', {
+        externalLinks: JSON.stringify(externalLinks, null, 2),
+        hideAtc,
+        externalLinksCount: externalLinks.length
+      });
       console.log('=== SAVE ACTION PARSING COMPLETE ===');
       const METAFIELD_NAMESPACE = "bl_custom_button";
 
@@ -351,9 +343,11 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         });
 
         const saveData = await saveResponse.json() as GraphQLResponse<ProductUpdateResponse>;
+        console.log('GraphQL save response:', JSON.stringify(saveData, null, 2));
 
         if (saveData.errors || (saveData.data?.productUpdate?.userErrors?.length ?? 0) > 0) {
           const errors = saveData.errors || saveData.data?.productUpdate?.userErrors || [];
+          console.log('GraphQL save errors:', errors);
           return json({
             error: "Failed to save: " + errors.map((e: any) => e.message).join(", "),
             success: false
@@ -616,6 +610,7 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
         if (metafieldMap["external_links"]) {
           try {
             externalLinks = JSON.parse(metafieldMap["external_links"]);
+            console.log(`Parsed external links for ${product.title}:`, externalLinks);
             // For display purposes, use the first enabled link
             const enabledLink = externalLinks.find((link: ExternalLink) => link.enabled !== false);
             if (enabledLink) {
@@ -732,6 +727,9 @@ export default function Index() {
   const [expandedProducts, setExpandedProducts] = useState<{ [key: string]: ExpandedProduct }>({});
   const [isLoadingPicker, setIsLoadingPicker] = useState(false);
   const [selectedProductForEdit, setSelectedProductForEdit] = useState<Product | null>(null);
+  const [formUpdateCounter, setFormUpdateCounter] = useState(0);
+
+
 
 
   const handlePreviewProduct = (handle: string) => {
@@ -970,6 +968,7 @@ export default function Index() {
         }
       };
     });
+    setFormUpdateCounter(prev => prev + 1);
   };
 
   // Add new external link
@@ -984,6 +983,7 @@ export default function Index() {
         }
       };
     });
+    setFormUpdateCounter(prev => prev + 1);
   };
 
   // Remove external link
@@ -998,6 +998,7 @@ export default function Index() {
         }
       };
     });
+    setFormUpdateCounter(prev => prev + 1);
   };
 
   // Handle action data effects
@@ -1192,10 +1193,11 @@ export default function Index() {
 
                     {/* Configuration for new product */}
                     {expandedProducts[selectedProductForEdit.id]?.isExpanded && (
-                      <Form method="post" data-save-bar>
+                      <Form method="post" data-save-bar key={`new-product-${selectedProductForEdit.id}-${formUpdateCounter}`}>
                         <input type="hidden" name="actionType" value="save" />
                         <input type="hidden" name="productId" value={selectedProductForEdit.id} />
-                        <input type="hidden" name="linkCount" value={expandedProducts[selectedProductForEdit.id]?.externalLinks?.length || 0} />
+                        <input type="hidden" name="externalLinksData" value={JSON.stringify(expandedProducts[selectedProductForEdit.id]?.externalLinks || [])} />
+                        <input type="hidden" name="hideAtcData" value={expandedProducts[selectedProductForEdit.id]?.hideAtc ? "true" : "false"} />
 
                         <Card>
                           <BlockStack gap="400">
@@ -1240,7 +1242,6 @@ export default function Index() {
                                           <FormLayout>
                                             <TextField
                                               label="Destination URL"
-                                              name={`link_${index}_url`}
                                               value={link.url || ""}
                                               onChange={(value) => updateExternalLink(selectedProductForEdit.id, index, "url", value)}
                                               autoComplete="off"
@@ -1250,7 +1251,6 @@ export default function Index() {
 
                                             <TextField
                                               label="Button text"
-                                              name={`link_${index}_text`}
                                               value={link.text || ""}
                                               onChange={(value) => updateExternalLink(selectedProductForEdit.id, index, "text", value)}
                                               autoComplete="off"
@@ -1258,10 +1258,8 @@ export default function Index() {
                                               helpText="Text displayed on the button"
                                             />
 
-                                            <input type="hidden" name={`link_${index}_enabled_hidden`} value={link.enabled !== false ? "true" : "false"} />
                                             <Checkbox
                                               label="Enable this button"
-                                              name={`link_${index}_enabled`}
                                               checked={link.enabled !== false}
                                               onChange={(checked) => updateExternalLink(selectedProductForEdit.id, index, "enabled", checked)}
                                               helpText="When enabled, this button will be visible on the product page"
@@ -1293,18 +1291,19 @@ export default function Index() {
                             <Card>
                               <BlockStack gap="300">
                                 <Text as="h4" variant="bodyLg" fontWeight="semibold">Display Options</Text>
-                                <input type="hidden" name="hideAtc_hidden" value={expandedProducts[selectedProductForEdit.id]?.hideAtc ? "true" : "false"} />
                                 <Checkbox
                                   label="Hide original 'Add to cart' button (experimental)"
-                                  name="hideAtc"
                                   checked={expandedProducts[selectedProductForEdit.id]?.hideAtc || false}
-                                  onChange={(checked) => setExpandedProducts(prev => ({
-                                    ...prev,
-                                    [selectedProductForEdit.id]: {
-                                      ...prev[selectedProductForEdit.id],
-                                      hideAtc: checked
-                                    }
-                                  }))}
+                                  onChange={(checked) => {
+                                    setExpandedProducts(prev => ({
+                                      ...prev,
+                                      [selectedProductForEdit.id]: {
+                                        ...prev[selectedProductForEdit.id],
+                                        hideAtc: checked
+                                      }
+                                    }));
+                                    setFormUpdateCounter(prev => prev + 1);
+                                  }}
                                   helpText="WARNING: This feature may not work with all themes. Test before publishing."
                                 />
                               </BlockStack>
@@ -1418,10 +1417,11 @@ export default function Index() {
 
                       {/* Expanded configuration section */}
                       {expandedProducts[product.id]?.isExpanded && (
-                        <Form method="post" data-save-bar>
+                        <Form method="post" data-save-bar key={`product-${product.id}-${formUpdateCounter}`}>
                           <input type="hidden" name="actionType" value="save" />
                           <input type="hidden" name="productId" value={product.id} />
-                          <input type="hidden" name="linkCount" value={expandedProducts[product.id]?.externalLinks?.length || 0} />
+                          <input type="hidden" name="externalLinksData" value={JSON.stringify(expandedProducts[product.id]?.externalLinks || [])} />
+                          <input type="hidden" name="hideAtcData" value={expandedProducts[product.id]?.hideAtc ? "true" : "false"} />
 
                           <Card background="bg-surface-secondary">
                             <BlockStack gap="400">
@@ -1474,7 +1474,6 @@ export default function Index() {
                                             <FormLayout>
                                               <TextField
                                                 label="Destination URL"
-                                                name={`link_${index}_url`}
                                                 value={link.url || ""}
                                                 onChange={(value) => updateExternalLink(product.id, index, "url", value)}
                                                 autoComplete="off"
@@ -1484,7 +1483,6 @@ export default function Index() {
 
                                               <TextField
                                                 label="Button text"
-                                                name={`link_${index}_text`}
                                                 value={link.text || ""}
                                                 onChange={(value) => updateExternalLink(product.id, index, "text", value)}
                                                 autoComplete="off"
@@ -1492,10 +1490,8 @@ export default function Index() {
                                                 helpText="Text displayed on the button"
                                               />
 
-                                              <input type="hidden" name={`link_${index}_enabled_hidden`} value={link.enabled !== false ? "true" : "false"} />
                                               <Checkbox
                                                 label="Enable this button"
-                                                name={`link_${index}_enabled`}
                                                 checked={link.enabled !== false}
                                                 onChange={(checked) => updateExternalLink(product.id, index, "enabled", checked)}
                                                 helpText="When enabled, this button will be visible on the product page"
@@ -1527,18 +1523,19 @@ export default function Index() {
                               <Card>
                                 <BlockStack gap="300">
                                   <Text as="h4" variant="bodyLg" fontWeight="semibold">Display Options</Text>
-                                  <input type="hidden" name="hideAtc_hidden" value={expandedProducts[product.id]?.hideAtc ? "true" : "false"} />
                                   <Checkbox
                                     label="Hide original 'Add to cart' button (experimental)"
-                                    name="hideAtc"
                                     checked={expandedProducts[product.id]?.hideAtc || false}
-                                    onChange={(checked) => setExpandedProducts(prev => ({
-                                      ...prev,
-                                      [product.id]: {
-                                        ...prev[product.id],
-                                        hideAtc: checked
-                                      }
-                                    }))}
+                                    onChange={(checked) => {
+                                      setExpandedProducts(prev => ({
+                                        ...prev,
+                                        [product.id]: {
+                                          ...prev[product.id],
+                                          hideAtc: checked
+                                        }
+                                      }));
+                                      setFormUpdateCounter(prev => prev + 1);
+                                    }}
                                     helpText="WARNING: This feature may not work with all themes. Test before publishing."
                                   />
                                 </BlockStack>
