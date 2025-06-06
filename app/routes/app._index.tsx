@@ -242,7 +242,14 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         const enabledValue = formData.get(`link_${i}_enabled`);
         const enabled = enabledValue === "on";
 
-        console.log(`Link ${i}:`, { url, text, enabledValue, enabled });
+        console.log(`=== LINK ${i} FORM DATA PARSING ===`);
+        console.log(`URL raw:`, formData.get(`link_${i}_url`));
+        console.log(`Text raw:`, formData.get(`link_${i}_text`));
+        console.log(`Enabled raw:`, formData.get(`link_${i}_enabled`));
+        console.log(`URL parsed:`, url);
+        console.log(`Text parsed:`, text);
+        console.log(`Enabled parsed:`, enabled);
+        console.log(`=== END LINK ${i} PARSING ===`);
 
         externalLinks.push({
           url: url,
@@ -365,9 +372,16 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
 
         console.log('GraphQL mutation variables:', JSON.stringify(mutationVariables, null, 2));
 
+        console.log('=== SENDING GRAPHQL MUTATION ===');
+        console.log('Mutation:', saveMutation);
+        console.log('Variables:', JSON.stringify(mutationVariables, null, 2));
+
         const saveResponse = await admin.graphql(saveMutation, {
           variables: mutationVariables
         });
+
+        console.log('Response status:', saveResponse.status);
+        console.log('Response ok:', saveResponse.ok);
 
         const saveData = await saveResponse.json() as GraphQLResponse<ProductUpdateResponse>;
         console.log('GraphQL save response:', JSON.stringify(saveData, null, 2));
@@ -782,9 +796,9 @@ export default function Index() {
   const formRefs = useRef<{ [key: string]: HTMLFormElement | null }>({});
 
   // Function to update DOM form values so Shopify Save Bar can detect changes
-  const updateFormDOMValues = useCallback((productId: string) => {
+  const updateFormDOMValues = useCallback((productId: string, newExpandedProduct?: ExpandedProduct) => {
     const form = formRefs.current[productId];
-    const expandedProduct = expandedProducts[productId];
+    const expandedProduct = newExpandedProduct || expandedProducts[productId];
 
     if (!form || !expandedProduct) {
       console.log(`Cannot update DOM values: form=${!!form}, expandedProduct=${!!expandedProduct}`);
@@ -792,6 +806,7 @@ export default function Index() {
     }
 
     console.log(`=== UPDATING DOM VALUES FOR ${productId} ===`);
+    console.log(`Using expanded product:`, expandedProduct);
 
     try {
       // Update linkCount
@@ -1112,11 +1127,12 @@ export default function Index() {
 
       console.log(`New product state:`, newState[productId]);
       console.log(`=== END UPDATE EXTERNAL LINK ===`);
+
+      // Update DOM immediately with new state
+      setTimeout(() => updateFormDOMValues(productId, newState[productId]), 0);
+
       return newState;
     });
-
-    // Update DOM values after state change
-    setTimeout(() => updateFormDOMValues(productId), 0);
   };
 
   // Add new external link
@@ -1419,6 +1435,7 @@ export default function Index() {
                                                 console.log(`Link index: ${index}`);
                                                 console.log(`Current enabled state: ${link.enabled}`);
                                                 console.log(`New checked state: ${checked}`);
+                                                console.log(`Checkbox render checked state: ${link.enabled}`);
                                                 updateExternalLink(selectedProductForEdit.id, index, "enabled", checked);
                                                 console.log(`=== END CHECKBOX CHANGE ===`);
                                               }}
@@ -1456,14 +1473,17 @@ export default function Index() {
                                   name="hideAtc"
                                   checked={expandedProducts[selectedProductForEdit.id]?.hideAtc || false}
                                   onChange={(checked) => {
-                                    setExpandedProducts(prev => ({
-                                      ...prev,
-                                      [selectedProductForEdit.id]: {
-                                        ...prev[selectedProductForEdit.id],
-                                        hideAtc: checked
-                                      }
-                                    }));
-                                    setTimeout(() => updateFormDOMValues(selectedProductForEdit.id), 0);
+                                    setExpandedProducts(prev => {
+                                      const newState = {
+                                        ...prev,
+                                        [selectedProductForEdit.id]: {
+                                          ...prev[selectedProductForEdit.id],
+                                          hideAtc: checked
+                                        }
+                                      };
+                                      setTimeout(() => updateFormDOMValues(selectedProductForEdit.id, newState[selectedProductForEdit.id]), 0);
+                                      return newState;
+                                    });
                                   }}
                                   helpText="WARNING: This feature may not work with all themes. Test before publishing."
                                 />
@@ -1666,6 +1686,7 @@ export default function Index() {
                                                   console.log(`Link index: ${index}`);
                                                   console.log(`Current enabled state: ${link.enabled}`);
                                                   console.log(`New checked state: ${checked}`);
+                                                  console.log(`Checkbox render checked state: ${link.enabled}`);
                                                   updateExternalLink(product.id, index, "enabled", checked);
                                                   console.log(`=== END CHECKBOX CHANGE ===`);
                                                 }}
@@ -1703,14 +1724,17 @@ export default function Index() {
                                     name="hideAtc"
                                     checked={expandedProducts[product.id]?.hideAtc || false}
                                     onChange={(checked) => {
-                                      setExpandedProducts(prev => ({
-                                        ...prev,
-                                        [product.id]: {
-                                          ...prev[product.id],
-                                          hideAtc: checked
-                                        }
-                                      }));
-                                      setTimeout(() => updateFormDOMValues(product.id), 0);
+                                      setExpandedProducts(prev => {
+                                        const newState = {
+                                          ...prev,
+                                          [product.id]: {
+                                            ...prev[product.id],
+                                            hideAtc: checked
+                                          }
+                                        };
+                                        setTimeout(() => updateFormDOMValues(product.id, newState[product.id]), 0);
+                                        return newState;
+                                      });
                                     }}
                                     helpText="WARNING: This feature may not work with all themes. Test before publishing."
                                   />
