@@ -298,6 +298,14 @@
     init: function () {
       this.log('Inicjalizacja DC External Links');
 
+      // Check for cache-busting parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('cache_bust')) {
+        this.log('Cache-busting parameter detected - forcing fresh render');
+        // Clear any cached render times
+        delete window.lastRenderTime;
+      }
+
       // Renderuj przyciski z JSON data
       this.renderExternalButtons();
 
@@ -362,10 +370,16 @@
           restoreATC: () => this.restoreATC(),
           hideATC: () => this.initHideATC(),
           renderButtons: () => this.renderExternalButtons(),
+          checkForUpdates: () => this.checkForUpdates(),
           log: (msg) => this.log(msg),
           config: this.config
         };
       }
+
+      // Periodically check for updates (every 30 seconds)
+      setInterval(() => {
+        this.checkForUpdates();
+      }, 30000);
 
       this.log('DC External Links zainicjalizowane pomyślnie');
     },
@@ -379,13 +393,22 @@
         containers.forEach(container => {
           const jsonData = container.getAttribute('data-external-links');
           const productId = container.getAttribute('data-product-id');
+          const timestamp = container.getAttribute('data-timestamp');
           const targetDiv = container.querySelector(`#external-buttons-${productId}`);
 
           this.log(`Przetwarzanie produktu ${productId}`, {
             hasJson: !!jsonData,
             hasTarget: !!targetDiv,
-            jsonLength: jsonData ? jsonData.length : 0
+            jsonLength: jsonData ? jsonData.length : 0,
+            timestamp: timestamp,
+            lastRender: window.lastRenderTime || 'never'
           });
+
+          // Skip if already rendered with this timestamp
+          if (timestamp && window.lastRenderTime === timestamp) {
+            this.log(`Skipping render for ${productId} - already rendered with timestamp ${timestamp}`);
+            return;
+          }
 
           if (!jsonData || !targetDiv) {
             this.log('Brak danych JSON lub kontenera docelowego', {
@@ -447,6 +470,12 @@
             });
 
             this.log(`Produkto ${productId}: renderowano ${renderedCount}/${externalLinks.length} przycisków`);
+
+            // Update render timestamp
+            if (timestamp) {
+              window.lastRenderTime = timestamp;
+              this.log(`Updated lastRenderTime to ${timestamp}`);
+            }
 
             if (renderedCount === 0) {
               // Dodaj komunikat informacyjny
@@ -524,6 +553,38 @@
       button.appendChild(span);
 
       return button;
+    },
+
+    // Check for metafield updates by attempting to re-read from DOM
+    checkForUpdates: function () {
+      try {
+        this.log('Checking for metafield updates...');
+
+        // Look for containers that might have updated data
+        const containers = document.querySelectorAll('.custom-external-button-container[data-external-links]');
+        let hasUpdates = false;
+
+        containers.forEach(container => {
+          const currentTimestamp = container.getAttribute('data-timestamp');
+          const productId = container.getAttribute('data-product-id');
+
+          // If timestamp is newer than last render, force re-render
+          if (currentTimestamp && (!window.lastRenderTime || currentTimestamp > window.lastRenderTime)) {
+            this.log(`Found updated data for product ${productId} - timestamp: ${currentTimestamp}`);
+            hasUpdates = true;
+          }
+        });
+
+        if (hasUpdates) {
+          this.log('Updates detected - re-rendering buttons');
+          this.renderExternalButtons();
+        } else {
+          this.log('No updates detected');
+        }
+
+      } catch (error) {
+        this.log('Error checking for updates', error);
+      }
     }
   };
 

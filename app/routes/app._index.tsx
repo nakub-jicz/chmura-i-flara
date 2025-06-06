@@ -441,6 +441,13 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         if (saveData.errors || (saveData.data?.productUpdate?.userErrors?.length ?? 0) > 0) {
           const errors = saveData.errors || saveData.data?.productUpdate?.userErrors || [];
           console.log('GraphQL save errors:', errors);
+          console.log('Detailed error analysis:', {
+            hasGraphQLErrors: !!saveData.errors,
+            graphQLErrorsCount: saveData.errors?.length || 0,
+            hasUserErrors: !!(saveData.data?.productUpdate?.userErrors?.length),
+            userErrorsCount: saveData.data?.productUpdate?.userErrors?.length || 0,
+            allErrors: errors
+          });
           return json({
             error: "Failed to save: " + errors.map((e: any) => e.message).join(", "),
             success: false
@@ -1223,6 +1230,13 @@ export default function Index() {
       // Clear selected product for edit after successful save
       setSelectedProductForEdit(null);
 
+      // Show additional toast with cache note
+      setTimeout(() => {
+        shopify?.toast?.show("Tip: If changes don't appear immediately, try refreshing the product page", {
+          duration: 4000
+        });
+      }, 2000);
+
     } else if (actionData?.error) {
       shopify?.toast?.show(actionData.error, { isError: true, duration: 5000 });
       setIsDeleting(false);
@@ -1827,6 +1841,18 @@ export default function Index() {
                                 >
                                   Preview Product
                                 </Button>
+                                <Button
+                                  variant="tertiary"
+                                  onClick={() => {
+                                    // Force refresh product page in new tab with cache-busting parameter
+                                    const url = `https://${loaderData.shopDomain}/products/${product.handle}?cache_bust=${Date.now()}`;
+                                    window.open(url, '_blank');
+                                    shopify?.toast?.show("Opening product page with cache refresh", { duration: 2000 });
+                                  }}
+                                  icon={ExternalIcon}
+                                >
+                                  Force Refresh
+                                </Button>
                               </InlineStack>
                             </BlockStack>
                           </Card>
@@ -1987,6 +2013,21 @@ export default function Index() {
                       <Text as="p">
                         When you make changes to product configurations, Shopify automatically detects form changes and shows a contextual save bar at the top of the page.
                         The save bar appears automatically when you modify any form data and provides Save/Discard options.
+                      </Text>
+                    </BlockStack>
+                  </Card>
+
+                  <Card>
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="bodyMd" fontWeight="semibold">
+                        Why don't my changes appear immediately on the product page?
+                      </Text>
+                      <Text as="p">
+                        Shopify uses caching to improve performance. After saving changes, it may take a few minutes for them to appear on the live product page.
+                        You can use the "Force Refresh" button to open the product page with cache-busting parameters to see changes immediately.
+                      </Text>
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        The extension also automatically checks for updates every 30 seconds and will re-render buttons when new data is detected.
                       </Text>
                     </BlockStack>
                   </Card>

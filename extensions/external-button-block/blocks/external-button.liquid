@@ -41,7 +41,8 @@
     • Hide ATC: {{ mf_hide_atc.value | default: "false" }}<br>
     • Has new format: {{ has_new_format }}<br>
     • Has legacy format: {{ has_legacy_format }}<br>
-    • <em>Czas: {{ "now" | date: "%H:%M:%S" }}</em>
+    • <em>Czas: {{ "now" | date: "%H:%M:%S" }}</em><br>
+    • <em>Cache-bust: {{ 'now' | date: '%s' }}</em>
   </div>
 {% endif %}
 
@@ -52,6 +53,7 @@
        data-atc-override-selector="{{ block.settings.atc_selector_override | escape }}"
        data-hide-atc="{{ mf_hide_atc.value }}"
        data-external-links="{{ mf_external_links.value | json | escape }}"
+       data-timestamp="{{ 'now' | date: '%s' }}"
        {{ block.shopify_attributes }}>
     
     {% comment %} --- Buttons will be rendered by JavaScript --- {% endcomment %}
@@ -65,11 +67,19 @@
         • JSON escaped: {{ mf_external_links.value | json | escape }}<br>
         • Product ID dla JS: {{ product.id }}<br>
         • Target div ID: external-buttons-{{ product.id }}<br>
+        • Timestamp: {{ 'now' | date: '%s' }}<br>
       </div>
     <script>
         console.log('[Clearify Debug] Product {{ product.id }} JSON data:', {{ mf_external_links.value | json }});
         console.log('[Clearify Debug] Container element:', document.querySelector('[data-product-id="{{ product.id }}"]'));
         console.log('[Clearify Debug] Target div:', document.querySelector('#external-buttons-{{ product.id }}'));
+        console.log('[Clearify Debug] Timestamp:', '{{ 'now' | date: '%s' }}');
+        console.log('[Clearify Debug] Full container data:', {
+          productId: '{{ product.id }}',
+          jsonData: {{ mf_external_links.value | json }},
+          hideAtc: '{{ mf_hide_atc.value }}',
+          timestamp: '{{ 'now' | date: '%s' }}'
+        });
     </script>
   {% endif %}
   </div>
