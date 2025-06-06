@@ -385,6 +385,18 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
       }
 
       console.log('=== SAVE SUCCESS ===');
+      console.log('Final saved data summary:', {
+        productId,
+        externalLinksCount: externalLinks.length,
+        externalLinksPreview: externalLinks.map(link => ({
+          text: link.text,
+          url: link.url?.substring(0, 30) + '...',
+          enabled: link.enabled
+        })),
+        hideAtc,
+        metafieldsCreated: metafieldsToCreate.length
+      });
+
       return json({
         success: true,
         message: "Product configuration saved successfully!"
@@ -639,14 +651,23 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
         if (metafieldMap["external_links"]) {
           try {
             externalLinks = JSON.parse(metafieldMap["external_links"]);
-            console.log(`Parsed external links for ${product.title}:`, externalLinks);
+            console.log(`=== PARSING EXTERNAL LINKS FOR ${product.title} ===`);
+            console.log(`Raw metafield value:`, metafieldMap["external_links"]);
+            console.log(`Parsed external links:`, externalLinks);
+
             // For display purposes, use the first enabled link
-            const enabledLink = externalLinks.find((link: ExternalLink) => link.enabled !== false);
+            const enabledLink = externalLinks.find((link: ExternalLink) => link.enabled === true);
+            console.log(`Found enabled link:`, enabledLink);
+
             if (enabledLink) {
               buttonText = enabledLink.text || "";
               externalUrl = enabledLink.url || "";
               isEnabled = true;
+              console.log(`Using enabled link for display:`, { buttonText, externalUrl, isEnabled });
+            } else {
+              console.log(`No enabled link found in:`, externalLinks);
             }
+            console.log(`=== END PARSING ===`);
           } catch (error) {
             console.error(`Error parsing external links JSON for ${product.title}:`, error);
           }
@@ -922,9 +943,16 @@ export default function Index() {
         return updated;
       } else {
         // Initialize expanded state from existing product data
+        console.log(`=== INITIALIZING EXPANDED PRODUCT ===`);
+        console.log(`Product ID: ${productId}`);
+        console.log(`Product data:`, product);
+        console.log(`Product external links:`, product.externalLinks);
+
         const externalLinks = product.externalLinks.length > 0
           ? product.externalLinks
           : [{ url: "", text: "", enabled: true }];
+
+        console.log(`Using external links:`, externalLinks);
 
         const newExpanded = {
           id: productId,
@@ -934,6 +962,9 @@ export default function Index() {
           hideAtc: product.hideAtc,
           isSaving: false
         };
+
+        console.log(`New expanded state:`, newExpanded);
+        console.log(`=== END INITIALIZATION ===`);
 
 
 
@@ -984,17 +1015,40 @@ export default function Index() {
 
   // Update external link in expanded product
   const updateExternalLink = (productId: string, index: number, field: keyof ExternalLink, value: string | boolean) => {
+    console.log(`=== UPDATE EXTERNAL LINK ===`);
+    console.log(`Product ID: ${productId}`);
+    console.log(`Index: ${index}`);
+    console.log(`Field: ${field}`);
+    console.log(`Value: ${value} (type: ${typeof value})`);
+
     setExpandedProducts(prev => {
-      if (!prev[productId]) return prev;
-      return {
+      if (!prev[productId]) {
+        console.log(`ERROR: No expanded product found for ID: ${productId}`);
+        return prev;
+      }
+
+      const currentProduct = prev[productId];
+      console.log(`Current product state:`, currentProduct);
+      console.log(`Current external links:`, currentProduct.externalLinks);
+
+      const newState = {
         ...prev,
         [productId]: {
           ...prev[productId],
-          externalLinks: prev[productId].externalLinks.map((link, i) =>
-            i === index ? { ...link, [field]: value } : link
-          )
+          externalLinks: prev[productId].externalLinks.map((link, i) => {
+            if (i === index) {
+              const updatedLink = { ...link, [field]: value };
+              console.log(`Updating link ${i}:`, { from: link, to: updatedLink });
+              return updatedLink;
+            }
+            return link;
+          })
         }
       };
+
+      console.log(`New product state:`, newState[productId]);
+      console.log(`=== END UPDATE EXTERNAL LINK ===`);
+      return newState;
     });
   };
 
@@ -1288,7 +1342,15 @@ export default function Index() {
                                               label="Enable this button"
                                               name={`link_${index}_enabled`}
                                               checked={link.enabled}
-                                              onChange={(checked) => updateExternalLink(selectedProductForEdit.id, index, "enabled", checked)}
+                                              onChange={(checked) => {
+                                                console.log(`=== CHECKBOX CHANGE NEW PRODUCT ===`);
+                                                console.log(`Product ID: ${selectedProductForEdit.id}`);
+                                                console.log(`Link index: ${index}`);
+                                                console.log(`Current enabled state: ${link.enabled}`);
+                                                console.log(`New checked state: ${checked}`);
+                                                updateExternalLink(selectedProductForEdit.id, index, "enabled", checked);
+                                                console.log(`=== END CHECKBOX CHANGE ===`);
+                                              }}
                                               helpText="When enabled, this button will be visible on the product page"
                                             />
                                           </FormLayout>
@@ -1522,7 +1584,15 @@ export default function Index() {
                                                 label="Enable this button"
                                                 name={`link_${index}_enabled`}
                                                 checked={link.enabled}
-                                                onChange={(checked) => updateExternalLink(product.id, index, "enabled", checked)}
+                                                onChange={(checked) => {
+                                                  console.log(`=== CHECKBOX CHANGE EXISTING PRODUCT ===`);
+                                                  console.log(`Product ID: ${product.id}`);
+                                                  console.log(`Link index: ${index}`);
+                                                  console.log(`Current enabled state: ${link.enabled}`);
+                                                  console.log(`New checked state: ${checked}`);
+                                                  updateExternalLink(product.id, index, "enabled", checked);
+                                                  console.log(`=== END CHECKBOX CHANGE ===`);
+                                                }}
                                                 helpText="When enabled, this button will be visible on the product page"
                                               />
                                             </FormLayout>
