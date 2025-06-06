@@ -820,6 +820,17 @@ export default function Index() {
   const getAutoAddUrl = () =>
     `https://${shopDomain}/admin/themes/current/editor?template=product&addAppBlockId=${APP_CLIENT_ID}/${EXTENSION_NAME}&target=mainSection`;
 
+  // Function to handle auto-add button click
+  const handleAutoAddBlock = () => {
+    window.open(getAutoAddUrl(), '_blank');
+    // Mark as likely added to hide future warnings
+    setBlockLikelyAdded(true);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dc-external-links-block-added', 'true');
+    }
+    shopify?.toast?.show("Opening theme editor to add button block", { duration: 2000 });
+  };
+
   // Debug App Bridge availability
   useEffect(() => {
     console.log('=== APP BRIDGE DEBUG ===');
@@ -869,6 +880,14 @@ export default function Index() {
   const [selectedProductForEdit, setSelectedProductForEdit] = useState<Product | null>(null);
   const [saveBarVisible, setSaveBarVisible] = useState(false);
   const [currentSavingProductId, setCurrentSavingProductId] = useState<string | null>(null);
+
+  // Check if user has likely added the block to theme
+  const [blockLikelyAdded, setBlockLikelyAdded] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('dc-external-links-block-added') === 'true';
+    }
+    return false;
+  });
 
   // Remove old DOM manipulation logic - using SaveBar component now
 
@@ -1332,22 +1351,19 @@ export default function Index() {
       }}
     >
       <Layout>
-        {/* Important Setup Banner */}
-        {configuredProducts && configuredProducts.length > 0 && (
+        {/* Theme Setup Reminder - only show if user has products configured but likely hasn't added the block */}
+        {configuredProducts && configuredProducts.length > 0 && !blockLikelyAdded && (
           <Layout.Section>
             <Banner
-              title="⚠️ Important: Theme Setup Required"
-              tone="warning"
+              title="Setup reminder"
+              tone="info"
               action={{
                 content: 'Auto-Add Button Block',
-                onAction: () => {
-                  window.open(getAutoAddUrl(), '_blank');
-                }
+                onAction: handleAutoAddBlock
               }}
             >
               <Text as="p">
-                If you don't see external buttons on your product pages, you need to add the "External Button" block to your theme.
-                This is a one-time setup: Go to Theme Editor → Product page → Add block → "External Button".
+                Don't see buttons on your product pages yet? You need to add the "External Button" block to your theme (one-time setup).
               </Text>
             </Banner>
           </Layout.Section>
@@ -1884,10 +1900,7 @@ export default function Index() {
                                 </Button>
                                 <Button
                                   variant="plain"
-                                  onClick={() => {
-                                    window.open(getAutoAddUrl(), '_blank');
-                                    shopify?.toast?.show("Opening theme editor to add button block", { duration: 2000 });
-                                  }}
+                                  onClick={handleAutoAddBlock}
                                   icon={ThemeIcon}
                                 >
                                   Add Block to Theme
@@ -2007,9 +2020,7 @@ export default function Index() {
                       <InlineStack gap="200">
                         <Button
                           variant="primary"
-                          onClick={() => {
-                            window.open(getAutoAddUrl(), '_blank');
-                          }}
+                          onClick={handleAutoAddBlock}
                           icon={ThemeIcon}
                         >
                           Auto-Add Button Block
@@ -2132,6 +2143,22 @@ export default function Index() {
                       </List>
                       <Text as="p">
                         After this setup, buttons will automatically appear on any product page where you've configured external links.
+                      </Text>
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        <strong>Still having issues?</strong> You can{' '}
+                        <Button
+                          variant="plain"
+                          onClick={() => {
+                            setBlockLikelyAdded(false);
+                            if (typeof window !== 'undefined') {
+                              localStorage.removeItem('dc-external-links-block-added');
+                            }
+                            shopify?.toast?.show("Setup reminder will show again", { duration: 2000 });
+                          }}
+                        >
+                          reset the setup reminder
+                        </Button>
+                        {' '}to show the setup banner again.
                       </Text>
                     </BlockStack>
                   </Card>
