@@ -46,7 +46,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
 } from '@shopify/polaris-icons';
-import { useAppBridge } from "@shopify/app-bridge-react";
+import { useAppBridge, SaveBar } from "@shopify/app-bridge-react";
 import { shopify } from "../shopify.server";
 
 // GraphQL Response types
@@ -852,59 +852,10 @@ export default function Index() {
   const [expandedProducts, setExpandedProducts] = useState<{ [key: string]: ExpandedProduct }>({});
   const [isLoadingPicker, setIsLoadingPicker] = useState(false);
   const [selectedProductForEdit, setSelectedProductForEdit] = useState<Product | null>(null);
+  const [saveBarVisible, setSaveBarVisible] = useState(false);
+  const [currentSavingProductId, setCurrentSavingProductId] = useState<string | null>(null);
 
-  // Refs to forms for direct DOM manipulation
-  const formRefs = useRef<{ [key: string]: HTMLFormElement | null }>({});
-
-  // Function to update DOM form values so Shopify Save Bar can detect changes
-  const updateFormDOMValues = useCallback((productId: string, newExpandedProduct?: ExpandedProduct) => {
-    const form = formRefs.current[productId];
-    const expandedProduct = newExpandedProduct || expandedProducts[productId];
-
-    if (!form || !expandedProduct) {
-      console.log(`Cannot update DOM values: form=${!!form}, expandedProduct=${!!expandedProduct}`);
-      return;
-    }
-
-    console.log(`=== UPDATING DOM VALUES FOR ${productId} ===`);
-    console.log(`Using expanded product:`, expandedProduct);
-
-    try {
-      // Update linkCount
-      const linkCountField = form.querySelector('input[name="linkCount"]') as HTMLInputElement;
-      if (linkCountField) {
-        linkCountField.value = expandedProduct.externalLinks.length.toString();
-        console.log(`Updated linkCount to: ${linkCountField.value}`);
-      }
-
-      // Update each link's fields - but skip checkboxes to avoid conflicts
-      expandedProduct.externalLinks.forEach((link, index) => {
-        // Update URL field
-        const urlField = form.querySelector(`input[name="link_${index}_url"]`) as HTMLInputElement;
-        if (urlField && urlField.value !== (link.url || "")) {
-          urlField.value = link.url || "";
-          console.log(`Updated link_${index}_url to: "${urlField.value}"`);
-        }
-
-        // Update text field
-        const textField = form.querySelector(`input[name="link_${index}_text"]`) as HTMLInputElement;
-        if (textField && textField.value !== (link.text || "")) {
-          textField.value = link.text || "";
-          console.log(`Updated link_${index}_text to: "${textField.value}"`);
-        }
-
-        // Skip checkbox updates to avoid conflicts - let React handle them
-        console.log(`Skipping checkbox sync for link_${index}_enabled (React handles this)`);
-      });
-
-      // Skip hideAtc checkbox sync - let React handle it
-      console.log(`Skipping hideAtc checkbox sync (React handles this)`);
-
-      console.log(`=== DOM VALUES UPDATED FOR ${productId} ===`);
-    } catch (error) {
-      console.error(`Error updating DOM values for ${productId}:`, error);
-    }
-  }, [expandedProducts]);
+  // Remove old DOM manipulation logic - using SaveBar component now
 
 
 
@@ -1120,126 +1071,62 @@ export default function Index() {
 
   // Save single product configuration (used by individual save buttons)
   const saveProductConfiguration = (productId: string) => {
-    try {
-      console.log('=== SAVE PRODUCT CONFIGURATION START ===');
-      console.log('Product ID:', productId);
+    console.log(`=== SAVE PRODUCT CONFIGURATION (OLD BUTTON) ===`);
+    console.log(`This should trigger SaveBar instead`);
 
-      const expandedProduct = expandedProducts[productId];
-      console.log('Expanded product found:', !!expandedProduct);
-      console.log('Expanded product data:', expandedProduct);
+    // Show SaveBar for manual saving
+    setSaveBarVisible(true);
+    setCurrentSavingProductId(productId);
+  };
 
-      if (!expandedProduct) {
-        console.log('ERROR: No expanded product found, returning early');
-        return;
-      }
+  // SaveBar handlers
+  const handleSaveBarSave = useCallback(() => {
+    if (currentSavingProductId) {
+      console.log('SaveBar Save clicked for product:', currentSavingProductId);
 
+      const expandedProduct = expandedProducts[currentSavingProductId];
+      if (!expandedProduct) return;
+
+      // Use regular form submission logic
       setExpandedProducts(prev => ({
         ...prev,
-        [productId]: {
-          ...prev[productId],
-          isSaving: true
-        }
+        [currentSavingProductId]: { ...prev[currentSavingProductId], isSaving: true }
       }));
 
       const formData = new FormData();
       formData.set("actionType", "save");
-      formData.set("productId", productId);
-
-      // Set link count
+      formData.set("productId", currentSavingProductId);
       formData.set("linkCount", expandedProduct.externalLinks.length.toString());
 
-      // Add each external link's data in the format expected by action
+      // Add each external link's data
       expandedProduct.externalLinks.forEach((link, index) => {
         formData.set(`link_${index}_url`, link.url || "");
         formData.set(`link_${index}_text`, link.text || "");
-        // Checkbox: only add field if checked (this is how HTML forms work)
         if (link.enabled) {
           formData.set(`link_${index}_enabled`, "on");
         }
       });
 
-      // Hide ATC checkbox: only add field if checked
+      // Hide ATC checkbox
       if (expandedProduct.hideAtc) {
         formData.set("hideAtc", "on");
       }
 
-      console.log('=== SAVE PRODUCT CONFIGURATION ===');
-      console.log('Product ID:', productId);
-      console.log('Expanded product full state:', expandedProduct);
-      console.log('External links in detail:', expandedProduct.externalLinks.map((link, index) => ({
-        index,
-        url: link.url,
-        text: link.text,
-        enabled: link.enabled,
-        enabled_type: typeof link.enabled
-      })));
-      console.log('Hide ATC:', expandedProduct.hideAtc);
-      console.log('FormData entries before submit:', Object.fromEntries(formData.entries()));
-
-      // Verify each checkbox field specifically
-      expandedProduct.externalLinks.forEach((link, index) => {
-        const fieldName = `link_${index}_enabled`;
-        const fieldValue = formData.get(fieldName);
-        console.log(`Checkbox field ${fieldName}: value="${fieldValue}", original enabled=${link.enabled}`);
-      });
-
-      // Test JSON stringification before submit
-      const testJsonString = JSON.stringify(expandedProduct.externalLinks);
-      console.log('JSON string that will be sent:', testJsonString);
-      const testParsedBack = JSON.parse(testJsonString);
-      console.log('JSON parsed back test:', testParsedBack);
-
-      console.log('=== END SAVE ===');
-
-      // Get the form element and submit it directly
-      console.log('Looking for form with productId:', productId);
-      console.log('formRefs.current:', formRefs.current);
-      console.log('Available form keys:', Object.keys(formRefs.current));
-
-      const form = formRefs.current[productId];
-      console.log('Form found:', !!form);
-      console.log('Form element:', form);
-
-      if (form) {
-        console.log('Found form element, updating DOM and submitting form directly');
-        // Update the form's DOM values with our FormData
-        Object.entries(Object.fromEntries(formData.entries())).forEach(([key, value]) => {
-          const field = form.querySelector(`[name="${key}"]`) as HTMLInputElement;
-          if (field) {
-            if (field.type === 'checkbox') {
-              const oldChecked = field.checked;
-              field.checked = value === 'on';
-              console.log(`Updated checkbox ${key}: oldChecked=${oldChecked}, newChecked=${field.checked}, formDataValue="${value}"`);
-
-              // Double-check that the checkbox was actually updated
-              setTimeout(() => {
-                const recheckField = form.querySelector(`[name="${key}"]`) as HTMLInputElement;
-                if (recheckField) {
-                  console.log(`Checkbox ${key} recheck after DOM update: checked=${recheckField.checked}`);
-                }
-              }, 10);
-            } else {
-              field.value = value as string;
-              console.log(`Updated field ${key}: value="${field.value}"`);
-            }
-          } else {
-            console.log(`Field ${key} not found in form`);
-          }
-        });
-
-        // Submit the actual form
-        form.requestSubmit();
-      } else {
-        console.log('Form element not found, using fallback submit');
-        // Fallback - use submit directly 
-        submit(formData, { method: "post" });
-      }
+      submit(formData, { method: "post" });
+      setSaveBarVisible(false);
+      setCurrentSavingProductId(null);
       shopify?.toast?.show("Saving configuration...", { duration: 2000 });
-    } catch (error) {
-      console.error('ERROR in saveProductConfiguration:', error);
-      shopify?.toast?.show("Error saving configuration", { isError: true, duration: 5000 });
     }
-  };
+  }, [currentSavingProductId, expandedProducts, submit, shopify]);
+
+  const handleSaveBarDiscard = useCallback(() => {
+    console.log('SaveBar Discard clicked');
+    setSaveBarVisible(false);
+    setCurrentSavingProductId(null);
+
+    // Could add logic to revert changes here if needed
+    shopify?.toast?.show("Changes discarded", { duration: 2000 });
+  }, [shopify]);
 
   // Update external link in expanded product
   const updateExternalLink = (productId: string, index: number, field: keyof ExternalLink, value: string | boolean) => {
@@ -1277,10 +1164,9 @@ export default function Index() {
       console.log(`New product state:`, newState[productId]);
       console.log(`=== END UPDATE EXTERNAL LINK ===`);
 
-      // Only update DOM for text fields, not checkboxes
-      if (field !== 'enabled') {
-        setTimeout(() => updateFormDOMValues(productId, newState[productId]), 0);
-      }
+      // Show SaveBar when changes are made
+      setSaveBarVisible(true);
+      setCurrentSavingProductId(productId);
 
       return newState;
     });
@@ -1502,7 +1388,7 @@ export default function Index() {
 
                     {/* Configuration for new product */}
                     {expandedProducts[selectedProductForEdit.id]?.isExpanded && (
-                      <Form method="post" data-save-bar ref={(el) => formRefs.current[selectedProductForEdit.id] = el}>
+                      <Form method="post">
                         <input type="hidden" name="actionType" value="save" />
                         <input type="hidden" name="productId" value={selectedProductForEdit.id} />
                         <input type="hidden" name="linkCount" value={expandedProducts[selectedProductForEdit.id]?.externalLinks?.length || 0} />
@@ -1585,22 +1471,9 @@ export default function Index() {
                                                 console.log(`Checkbox render checked state: ${link.enabled}`);
                                                 updateExternalLink(selectedProductForEdit.id, index, "enabled", checked);
 
-                                                // Manually sync checkbox with DOM for Shopify Save Bar
-                                                setTimeout(() => {
-                                                  const form = formRefs.current[selectedProductForEdit.id];
-                                                  if (form) {
-                                                    const checkboxField = form.querySelector(`[name="link_${index}_enabled"]`) as HTMLInputElement;
-                                                    if (checkboxField) {
-                                                      checkboxField.checked = checked;
-                                                      console.log(`Synced checkbox DOM (new product): ${checkboxField.name} = ${checkboxField.checked}`);
-
-                                                      // Trigger change event so Shopify Save Bar detects the change
-                                                      const changeEvent = new Event('change', { bubbles: true });
-                                                      checkboxField.dispatchEvent(changeEvent);
-                                                      console.log(`Dispatched change event for checkbox (new product) ${checkboxField.name}`);
-                                                    }
-                                                  }
-                                                }, 50);
+                                                // Show SaveBar when changes are made
+                                                setSaveBarVisible(true);
+                                                setCurrentSavingProductId(selectedProductForEdit.id);
 
                                                 console.log(`=== END CHECKBOX CHANGE ===`);
                                               }}
@@ -1647,22 +1520,9 @@ export default function Index() {
                                         }
                                       };
 
-                                      // Manually sync hideAtc checkbox with DOM for Shopify Save Bar
-                                      setTimeout(() => {
-                                        const form = formRefs.current[selectedProductForEdit.id];
-                                        if (form) {
-                                          const hideAtcField = form.querySelector(`[name="hideAtc"]`) as HTMLInputElement;
-                                          if (hideAtcField) {
-                                            hideAtcField.checked = checked;
-                                            console.log(`Synced hideAtc DOM (new product): ${hideAtcField.name} = ${hideAtcField.checked}`);
-
-                                            // Trigger change event so Shopify Save Bar detects the change
-                                            const changeEvent = new Event('change', { bubbles: true });
-                                            hideAtcField.dispatchEvent(changeEvent);
-                                            console.log(`Dispatched change event for hideAtc (new product)`);
-                                          }
-                                        }
-                                      }, 50);
+                                      // Show SaveBar when changes are made
+                                      setSaveBarVisible(true);
+                                      setCurrentSavingProductId(selectedProductForEdit.id);
 
                                       return newState;
                                     });
@@ -1788,7 +1648,7 @@ export default function Index() {
 
                       {/* Expanded configuration section */}
                       {expandedProducts[product.id]?.isExpanded && (
-                        <Form method="post" data-save-bar ref={(el) => formRefs.current[product.id] = el}>
+                        <Form method="post">
                           <input type="hidden" name="actionType" value="save" />
                           <input type="hidden" name="productId" value={product.id} />
                           <input type="hidden" name="linkCount" value={expandedProducts[product.id]?.externalLinks?.length || 0} />
@@ -1886,22 +1746,7 @@ export default function Index() {
                                                   });
                                                   updateExternalLink(product.id, index, "enabled", checked);
 
-                                                  // Manually sync checkbox with DOM for Shopify Save Bar
-                                                  setTimeout(() => {
-                                                    const form = formRefs.current[product.id];
-                                                    if (form) {
-                                                      const checkboxField = form.querySelector(`[name="link_${index}_enabled"]`) as HTMLInputElement;
-                                                      if (checkboxField) {
-                                                        checkboxField.checked = checked;
-                                                        console.log(`Synced checkbox DOM: ${checkboxField.name} = ${checkboxField.checked}`);
-
-                                                        // Trigger change event so Shopify Save Bar detects the change
-                                                        const changeEvent = new Event('change', { bubbles: true });
-                                                        checkboxField.dispatchEvent(changeEvent);
-                                                        console.log(`Dispatched change event for checkbox ${checkboxField.name}`);
-                                                      }
-                                                    }
-                                                  }, 50);
+                                                  // Show SaveBar when changes are made
 
                                                   console.log(`=== END CHECKBOX CHANGE ===`);
                                                 }}
@@ -1948,22 +1793,9 @@ export default function Index() {
                                           }
                                         };
 
-                                        // Manually sync hideAtc checkbox with DOM for Shopify Save Bar
-                                        setTimeout(() => {
-                                          const form = formRefs.current[product.id];
-                                          if (form) {
-                                            const hideAtcField = form.querySelector(`[name="hideAtc"]`) as HTMLInputElement;
-                                            if (hideAtcField) {
-                                              hideAtcField.checked = checked;
-                                              console.log(`Synced hideAtc DOM: ${hideAtcField.name} = ${hideAtcField.checked}`);
-
-                                              // Trigger change event so Shopify Save Bar detects the change
-                                              const changeEvent = new Event('change', { bubbles: true });
-                                              hideAtcField.dispatchEvent(changeEvent);
-                                              console.log(`Dispatched change event for hideAtc`);
-                                            }
-                                          }
-                                        }, 50);
+                                        // Show SaveBar when changes are made
+                                        setSaveBarVisible(true);
+                                        setCurrentSavingProductId(product.id);
 
                                         return newState;
                                       });
@@ -2255,6 +2087,16 @@ export default function Index() {
           </BlockStack>
         </Modal.Section>
       </Modal>
+
+      {/* New SaveBar component for manual control */}
+      <SaveBar id="product-save-bar" open={saveBarVisible}>
+        <button variant="primary" onClick={handleSaveBarSave}>
+          Save
+        </button>
+        <button onClick={handleSaveBarDiscard}>
+          Discard
+        </button>
+      </SaveBar>
     </Page>
   );
 }
