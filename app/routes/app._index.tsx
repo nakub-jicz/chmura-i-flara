@@ -209,7 +209,13 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
     const productId = formData.get("productId");
 
     console.log('Action called with:', { actionType, productId });
-    console.log('Full form data:', Object.fromEntries(formData.entries()));
+    console.log('Full form data:');
+    console.log('Raw form entries:', Object.fromEntries(formData.entries()));
+
+    // Log each form field individually for debugging
+    for (const [key, value] of formData.entries()) {
+      console.log(`  ${key}: "${value}" (type: ${typeof value})`);
+    }
 
     if (actionType === "save" && productId) {
       // Save product configuration
@@ -225,7 +231,7 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
       // Parse external links from form fields
       const linkCountString = formData.get("linkCount");
       const linkCount = parseInt(linkCountString as string || "0", 10);
-      console.log('Link count:', linkCount);
+      console.log('Link count parsing:', { linkCountString, linkCount, isNaN: isNaN(linkCount) });
 
       const externalLinks: ExternalLink[] = [];
 
@@ -304,21 +310,30 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
       // Save new configuration
       const metafieldsToCreate: Array<{ key: string; value: string; type: string }> = [];
 
-      if (externalLinks.length > 0) {
-        metafieldsToCreate.push({
-          key: "external_links",
-          value: JSON.stringify(externalLinks),
-          type: "json"
-        });
-      }
+      console.log('Creating metafields with data:', { externalLinks, hideAtc });
+
+      // Always save external links data (even if empty or all disabled)
+      // This ensures the configuration is properly saved and can be retrieved later
+      const jsonValue = JSON.stringify(externalLinks);
+      console.log('Adding external_links metafield with value:', jsonValue);
+      metafieldsToCreate.push({
+        key: "external_links",
+        value: jsonValue,
+        type: "json"
+      });
 
       if (hideAtc) {
+        console.log('Adding hide_atc metafield');
         metafieldsToCreate.push({
           key: "hide_atc",
           value: "true",
           type: "single_line_text_field"
         });
+      } else {
+        console.log('hideAtc is false, not adding metafield');
       }
+
+      console.log('Final metafields to create:', metafieldsToCreate);
 
       if (metafieldsToCreate.length > 0) {
         const saveMutation = `
@@ -336,18 +351,22 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
           }
         `;
 
-        const saveResponse = await admin.graphql(saveMutation, {
-          variables: {
-            input: {
-              id: productId,
-              metafields: metafieldsToCreate.map(field => ({
-                namespace: METAFIELD_NAMESPACE,
-                key: field.key,
-                value: field.value,
-                type: field.type
-              }))
-            }
+        const mutationVariables = {
+          input: {
+            id: productId,
+            metafields: metafieldsToCreate.map(field => ({
+              namespace: METAFIELD_NAMESPACE,
+              key: field.key,
+              value: field.value,
+              type: field.type
+            }))
           }
+        };
+
+        console.log('GraphQL mutation variables:', JSON.stringify(mutationVariables, null, 2));
+
+        const saveResponse = await admin.graphql(saveMutation, {
+          variables: mutationVariables
         });
 
         const saveData = await saveResponse.json() as GraphQLResponse<ProductUpdateResponse>;
@@ -361,6 +380,8 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
             success: false
           });
         }
+      } else {
+        console.log('No metafields to create, but save operation still considered successful');
       }
 
       console.log('=== SAVE SUCCESS ===');
@@ -1266,7 +1287,7 @@ export default function Index() {
                                             <Checkbox
                                               label="Enable this button"
                                               name={`link_${index}_enabled`}
-                                              checked={link.enabled !== false}
+                                              checked={link.enabled}
                                               onChange={(checked) => updateExternalLink(selectedProductForEdit.id, index, "enabled", checked)}
                                               helpText="When enabled, this button will be visible on the product page"
                                             />
@@ -1500,7 +1521,7 @@ export default function Index() {
                                               <Checkbox
                                                 label="Enable this button"
                                                 name={`link_${index}_enabled`}
-                                                checked={link.enabled !== false}
+                                                checked={link.enabled}
                                                 onChange={(checked) => updateExternalLink(product.id, index, "enabled", checked)}
                                                 helpText="When enabled, this button will be visible on the product page"
                                               />
