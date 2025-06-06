@@ -269,29 +269,45 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
       console.log('=== SAVE ACTION PARSING COMPLETE ===');
       const METAFIELD_NAMESPACE = "bl_custom_button";
 
-      // First delete existing metafields
-      const deleteQuery = `
+      // Get existing metafields to know which ones to update vs create
+      const getExistingQuery = `
         query getProductMetafields($id: ID!) {
           product(id: $id) {
             metafields(first: 20, namespace: "${METAFIELD_NAMESPACE}") {
               nodes {
+                id
                 key
+                value
+                type
               }
             }
           }
         }
       `;
 
-      const deleteResponse = await admin.graphql(deleteQuery, {
+      const existingResponse = await admin.graphql(getExistingQuery, {
         variables: { id: productId }
       });
 
-      const deleteData = await deleteResponse.json() as GraphQLResponse<{
-        product: { metafields: { nodes: Array<{ key: string }> } };
+      const existingData = await existingResponse.json() as GraphQLResponse<{
+        product: { metafields: { nodes: Array<{ id: string; key: string; value: string; type: string }> } };
       }>;
 
-      if (deleteData.data?.product?.metafields?.nodes?.length && deleteData.data.product.metafields.nodes.length > 0) {
-        const keysToDelete = deleteData.data.product.metafields.nodes.map(m => m.key);
+      console.log('Existing metafields:', existingData.data?.product?.metafields?.nodes);
+
+      const existingMetafields = existingData.data?.product?.metafields?.nodes || [];
+      const existingMetafieldMap = new Map(existingMetafields.map(mf => [mf.key, mf]));
+
+      // Mark metafields to delete that are no longer needed
+      const keysToKeep = new Set(['external_links']);
+      if (hideAtc) {
+        keysToKeep.add('hide_atc');
+      }
+
+      const metafieldsToDelete = existingMetafields.filter(mf => !keysToKeep.has(mf.key));
+
+      if (metafieldsToDelete.length > 0) {
+        console.log('Deleting unused metafields:', metafieldsToDelete.map(mf => mf.key));
         const deleteMutation = `
           mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
             metafieldsDelete(metafields: $metafields) {
@@ -308,24 +324,23 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
 
         await admin.graphql(deleteMutation, {
           variables: {
-            metafields: keysToDelete.map(key => ({
+            metafields: metafieldsToDelete.map(mf => ({
               ownerId: productId,
               namespace: METAFIELD_NAMESPACE,
-              key: key
+              key: mf.key
             }))
           }
         });
       }
 
-      // Save new configuration
-      const metafieldsToCreate: Array<{ key: string; value: string; type: string }> = [];
+      // Prepare metafields for save (update existing or create new)
+      const metafieldsToSave: Array<{ id?: string; key: string; value: string; type: string }> = [];
 
-      console.log('Creating metafields with data:', { externalLinks, hideAtc });
+      console.log('Preparing metafields with data:', { externalLinks, hideAtc });
 
       // Always save external links data (even if empty or all disabled)
-      // This ensures the configuration is properly saved and can be retrieved later
       const jsonValue = JSON.stringify(externalLinks);
-      console.log('Adding external_links metafield with value:', jsonValue);
+      console.log('Preparing external_links metafield with value:', jsonValue);
       console.log('JSON value parsed back for verification:', JSON.parse(jsonValue));
       console.log('External links before JSON stringification:', externalLinks.map((link, index) => ({
         index,
@@ -335,7 +350,9 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         enabled_type: typeof link.enabled
       })));
 
-      metafieldsToCreate.push({
+      const existingExternalLinks = existingMetafieldMap.get("external_links");
+      metafieldsToSave.push({
+        ...(existingExternalLinks ? { id: existingExternalLinks.id } : {}),
         key: "external_links",
         value: jsonValue,
         type: "json"
@@ -343,7 +360,9 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
 
       if (hideAtc) {
         console.log('Adding hide_atc metafield');
-        metafieldsToCreate.push({
+        const existingHideAtc = existingMetafieldMap.get("hide_atc");
+        metafieldsToSave.push({
+          ...(existingHideAtc ? { id: existingHideAtc.id } : {}),
           key: "hide_atc",
           value: "true",
           type: "single_line_text_field"
@@ -352,15 +371,24 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         console.log('hideAtc is false, not adding metafield');
       }
 
-      console.log('Final metafields to create:', metafieldsToCreate);
+      console.log('Final metafields to save:', metafieldsToSave);
 
-      if (metafieldsToCreate.length > 0) {
+      if (metafieldsToSave.length > 0) {
         const saveMutation = `
           mutation productUpdate($input: ProductInput!) {
             productUpdate(input: $input) {
               product {
                 id
                 title
+                metafields(first: 10, namespace: "${METAFIELD_NAMESPACE}") {
+                  nodes {
+                    id
+                    namespace
+                    key
+                    value
+                    type
+                  }
+                }
               }
               userErrors {
                 field
@@ -373,8 +401,9 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         const mutationVariables = {
           input: {
             id: productId,
-            metafields: metafieldsToCreate.map(field => ({
+            metafields: metafieldsToSave.map((field: any) => ({
               namespace: METAFIELD_NAMESPACE,
+              ...(field.id ? { id: field.id } : {}),
               key: field.key,
               value: field.value,
               type: field.type
@@ -420,7 +449,7 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
           enabled: link.enabled
         })),
         hideAtc,
-        metafieldsCreated: metafieldsToCreate.length
+        metafieldsCreated: metafieldsToSave.length
       });
 
       return json({
