@@ -1,4 +1,5 @@
 import "@shopify/shopify-app-remix/adapters/node";
+import "@shopify/shopify-api/adapters/cf-worker";
 import {
   ApiVersion,
   AppDistribution,
@@ -6,7 +7,7 @@ import {
 } from "@shopify/shopify-app-remix/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
-import type { AppLoadContext } from "@remix-run/node";
+import type { AppLoadContext } from "@remix-run/cloudflare";
 
 export const shopify = (context: AppLoadContext) =>
   shopifyApp({
@@ -24,8 +25,8 @@ export const shopify = (context: AppLoadContext) =>
       unstable_newEmbeddedAuthStrategy: true,
       removeRest: true,
     },
-    ...(process.env.SHOP_CUSTOM_DOMAIN
-      ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
+    ...(context.cloudflare.env.SHOP_CUSTOM_DOMAIN
+      ? { customShopDomains: [context.cloudflare.env.SHOP_CUSTOM_DOMAIN] }
       : {}),
   });
 

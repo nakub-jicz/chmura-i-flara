@@ -1,7 +1,6 @@
-// app/routes/app.product-config.tsx
 import React, { useState, useCallback, useEffect } from "react";
-import { json } from "@remix-run/node";
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/cloudflare";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/cloudflare";
 import { useLoaderData, useSubmit, useNavigate, useActionData } from "@remix-run/react";
 import {
   Page,

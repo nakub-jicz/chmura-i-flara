@@ -6,6 +6,7 @@ type Env = {
   SHOPIFY_APP_URL?: string;
   DATABASE_URL?: string;
   SCOPES?: string;
+  SHOP_CUSTOM_DOMAIN?: string;
 }
 
 type GetLoadContextArgs = {

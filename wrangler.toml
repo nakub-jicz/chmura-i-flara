@@ -1,0 +1,17 @@
+name = "chmura-i-flara"
+compatibility_date = "2024-11-11"
+compatibility_flags = ["nodejs_compat_v2"]
+main = "./server.ts"
+
+[build]
+command = "npm run build"
+
+[observability]
+enabled = true
+
+[assets]
+directory = "./build/client"
+
+[vars]
+SHOPIFY_APP_URL = "https://cloudflare-workers-app.jakub-okseniuk.workers.dev"
+SCOPES = "writes_products" 

@@ -81,4 +81,7 @@ export default defineConfig({
   build: {
     minify: true,
   },
+  json: {
+    stringify: true
+  }
 });

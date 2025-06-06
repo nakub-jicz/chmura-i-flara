@@ -12,6 +12,7 @@ database.sqlite
 
 .env
 .env.*
+.dev.vars
 
 yarn.lock
 pnpm-lock.yaml
