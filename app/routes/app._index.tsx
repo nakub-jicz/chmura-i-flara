@@ -2339,15 +2339,6 @@ export default function Index() {
                         >
                           Auto-Add Button Block
                         </Button>
-                        {themeEditorUrl && (
-                          <Button
-                            variant="secondary"
-                            onClick={() => window.open(themeEditorUrl, '_blank')}
-                            icon={ThemeIcon}
-                          >
-                            Open Theme Editor
-                          </Button>
-                        )}
                       </InlineStack>
                     </BlockStack>
                   </Card>
