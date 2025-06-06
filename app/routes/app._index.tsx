@@ -133,6 +133,13 @@ declare global {
         show(message: string, options?: { isError?: boolean; duration?: number }): void;
       };
       resourcePicker?: (options: any) => Promise<any>;
+      ContextualSaveBar?: {
+        create(options: any): any;
+        Action?: {
+          SHOW: string;
+          HIDE: string;
+        };
+      };
     };
   }
 }
@@ -206,28 +213,44 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
 
     if (actionType === "save" && productId) {
       // Save product configuration
-      const externalLinksData = formData.get("externalLinks");
+      console.log('=== SAVE ACTION START ===');
+      console.log('ProductId:', productId);
+      console.log('All form data entries:', Object.fromEntries(formData.entries()));
+
       const hideAtcData = formData.get("hideAtc");
+      const hideAtcHidden = formData.get("hideAtc_hidden");
+      // Use checkbox value if present, otherwise use hidden field
+      const hideAtc = hideAtcData === "on" || (hideAtcData === null && hideAtcHidden === "true");
+      console.log('Hide ATC data:', { hideAtcData, hideAtcHidden, hideAtc });
 
-      if (!externalLinksData) {
-        return json({
-          error: "Missing external links data",
-          success: false
+      // Parse external links from form data
+      const linkCountData = formData.get("linkCount");
+      const linkCount = parseInt(linkCountData as string || "0", 10);
+      console.log('Expected link count:', linkCount);
+
+      const externalLinks: ExternalLink[] = [];
+
+      // Extract link data based on known count
+      for (let linkIndex = 0; linkIndex < linkCount; linkIndex++) {
+        const url = formData.get(`link_${linkIndex}_url`) as string || "";
+        const text = formData.get(`link_${linkIndex}_text`) as string || "";
+        const enabledData = formData.get(`link_${linkIndex}_enabled`);
+        const enabledHidden = formData.get(`link_${linkIndex}_enabled_hidden`);
+        // Use checkbox value if present, otherwise use hidden field
+        const enabled = enabledData === "on" || (enabledData === null && enabledHidden === "true");
+
+        console.log(`Link ${linkIndex}:`, { url, text, enabledData, enabledHidden, enabled });
+
+        // Add all links, even empty ones (they might be valid placeholders)
+        externalLinks.push({
+          url: url,
+          text: text,
+          enabled: enabled
         });
       }
 
-      let externalLinks: ExternalLink[];
-      try {
-        externalLinks = JSON.parse(externalLinksData as string);
-      } catch (e: any) {
-        console.error("Error parsing external links:", e);
-        return json({
-          error: "Invalid external links format",
-          success: false
-        });
-      }
-
-      const hideAtc = hideAtcData === "on";
+      console.log('Final external links:', externalLinks);
+      console.log('=== SAVE ACTION PARSING COMPLETE ===');
       const METAFIELD_NAMESPACE = "bl_custom_button";
 
       // First delete existing metafields
@@ -338,6 +361,7 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         }
       }
 
+      console.log('=== SAVE SUCCESS ===');
       return json({
         success: true,
         message: "Product configuration saved successfully!"
@@ -610,7 +634,7 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
           isEnabled = metafieldMap["is_enabled"] === "true";
         }
 
-        return {
+        const productData = {
           id: product.id,
           title: product.title,
           handle: product.handle,
@@ -623,7 +647,10 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
           hasMultipleLinks: externalLinks.length > 1,
           externalLinks: externalLinks
         };
-      }).filter((product: Product) => product.hasMetafields && (product.externalUrl || product.buttonText)); // Only show products with metafields and some configuration
+
+        console.log(`Product ${product.title} data:`, productData);
+        return productData;
+      }).filter((product: Product) => product.hasMetafields && (product.externalUrl || product.buttonText || product.externalLinks.length > 0)); // Only show products with metafields and some configuration
 
       console.log("Products with metafields:", configuredProducts.length);
     }
@@ -670,6 +697,8 @@ export default function Index() {
     if (shopify) {
       console.log('resourcePicker available:', typeof shopify.resourcePicker);
       console.log('resourcePicker type:', typeof shopify.resourcePicker);
+      console.log('saveBar available:', typeof shopify.saveBar);
+      console.log('saveBar methods:', shopify.saveBar ? Object.keys(shopify.saveBar) : 'N/A');
     }
 
     // Check URL params for debugging
@@ -704,10 +733,15 @@ export default function Index() {
   const [isLoadingPicker, setIsLoadingPicker] = useState(false);
   const [selectedProductForEdit, setSelectedProductForEdit] = useState<Product | null>(null);
 
+
   const handlePreviewProduct = (handle: string) => {
     const previewUrl = `https://${shopDomain}/products/${handle}`;
     window.open(previewUrl, '_blank');
   };
+
+
+
+
 
   // Product picker function - Updated for newer App Bridge API with fallbacks
   const handleOpenProductPicker = useCallback(async () => {
@@ -781,16 +815,20 @@ export default function Index() {
         };
 
         // Expand this product for editing
+        const newExpanded = {
+          id: selected.id,
+          isExpanded: true,
+          isEditing: true,
+          externalLinks: [{ url: "", text: "", enabled: true }],
+          hideAtc: false,
+          isSaving: false
+        };
+
+
+
         setExpandedProducts(prev => ({
           ...prev,
-          [selected.id]: {
-            id: selected.id,
-            isExpanded: true,
-            isEditing: true,
-            externalLinks: [{ url: "", text: "", enabled: true }],
-            hideAtc: false,
-            isSaving: false
-          }
+          [selected.id]: newExpanded
         }));
 
         setSelectedProductForEdit(newProduct);
@@ -848,29 +886,34 @@ export default function Index() {
     setExpandedProducts(prev => {
       const current = prev[productId];
       if (current) {
-        return {
+        const updated = {
           ...prev,
           [productId]: {
             ...current,
             isExpanded: !current.isExpanded
           }
         };
+        return updated;
       } else {
         // Initialize expanded state from existing product data
         const externalLinks = product.externalLinks.length > 0
           ? product.externalLinks
           : [{ url: "", text: "", enabled: true }];
 
+        const newExpanded = {
+          id: productId,
+          isExpanded: true,
+          isEditing: false,
+          externalLinks,
+          hideAtc: product.hideAtc,
+          isSaving: false
+        };
+
+
+
         return {
           ...prev,
-          [productId]: {
-            id: productId,
-            isExpanded: true,
-            isEditing: false,
-            externalLinks,
-            hideAtc: product.hideAtc,
-            isSaving: false
-          }
+          [productId]: newExpanded
         };
       }
     });
@@ -878,16 +921,19 @@ export default function Index() {
 
   // Start editing a product
   const startEditingProduct = (productId: string) => {
-    setExpandedProducts(prev => ({
-      ...prev,
-      [productId]: {
-        ...prev[productId],
-        isEditing: true
-      }
-    }));
+    setExpandedProducts(prev => {
+      const updated = {
+        ...prev,
+        [productId]: {
+          ...prev[productId],
+          isEditing: true
+        }
+      };
+      return updated;
+    });
   };
 
-  // Save product configuration
+  // Save single product configuration (used by individual save buttons)
   const saveProductConfiguration = (productId: string) => {
     const expandedProduct = expandedProducts[productId];
     if (!expandedProduct) return;
@@ -960,22 +1006,27 @@ export default function Index() {
       shopify?.toast?.show(actionData.message || "Success", { duration: 5000 });
       setIsDeleting(false);
 
-      // Reset saving state for all products
+      // Reset saving state for all products and update original state
       setExpandedProducts(prev => {
         const updated = { ...prev };
         Object.keys(updated).forEach(productId => {
           updated[productId] = {
             ...updated[productId],
-            isSaving: false
+            isSaving: false,
+            isEditing: false // Stop editing mode after successful save
           };
         });
+
+
+
         return updated;
       });
 
-      // Clear selected product for edit if it was just saved
-      if (selectedProductForEdit) {
-        setSelectedProductForEdit(null);
-      }
+      // Keep selected product for edit but stop editing mode
+      // Don't clear selectedProductForEdit immediately - let it stay for user to see the result
+
+
+
     } else if (actionData?.error) {
       shopify?.toast?.show(actionData.error, { isError: true, duration: 5000 });
       setIsDeleting(false);
@@ -1086,7 +1137,7 @@ export default function Index() {
               <InlineStack align="space-between" blockAlign="center">
                 <BlockStack gap="200">
                   <Text as="h2" variant="headingMd">
-                    External Links Configuration
+                    Product Configuration
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
                     Add external affiliate links that will appear as buttons on your product pages
@@ -1094,9 +1145,6 @@ export default function Index() {
                 </BlockStack>
                 <InlineStack gap="300" align="end">
                   <InlineStack gap="200" blockAlign="center">
-                    <Text as="span" variant="bodyMd" fontWeight="semibold">
-                      Products:
-                    </Text>
                     <Badge tone="info">{`${configuredProducts.length} configured`}</Badge>
                   </InlineStack>
                   <InlineStack gap="300" align="center">
@@ -1105,14 +1153,10 @@ export default function Index() {
                       loading={isLoadingPicker}
                       variant="primary"
                       disabled={isLoadingPicker}
+                      icon={ProductIcon}
                     >
                       {isLoadingPicker ? 'Opening picker...' : 'Add Product'}
                     </Button>
-
-                    {/* Help text for troubleshooting */}
-                    <Text as="p" variant="bodyMd" tone="subdued">
-                      Nie działa? Sprawdź instrukcje powyżej ↑
-                    </Text>
                   </InlineStack>
                 </InlineStack>
               </InlineStack>
@@ -1148,134 +1192,137 @@ export default function Index() {
 
                     {/* Configuration for new product */}
                     {expandedProducts[selectedProductForEdit.id]?.isExpanded && (
-                      <Card>
-                        <BlockStack gap="400">
-                          <Text as="h3" variant="headingMd">
-                            Configure: {selectedProductForEdit.title}
-                          </Text>
+                      <Form method="post" data-save-bar>
+                        <input type="hidden" name="actionType" value="save" />
+                        <input type="hidden" name="productId" value={selectedProductForEdit.id} />
+                        <input type="hidden" name="linkCount" value={expandedProducts[selectedProductForEdit.id]?.externalLinks?.length || 0} />
 
-                          {/* External Links Configuration */}
-                          <Card>
-                            <BlockStack gap="400">
-                              <InlineStack align="space-between" blockAlign="center">
-                                <Text as="h4" variant="bodyLg" fontWeight="semibold">External Links</Text>
-                                <Button
-                                  onClick={() => addExternalLink(selectedProductForEdit.id)}
-                                  icon={PlusIcon}
-                                  size="medium"
-                                >
-                                  Add Link
-                                </Button>
-                              </InlineStack>
+                        <Card>
+                          <BlockStack gap="400">
+                            <Text as="h3" variant="headingMd">
+                              Configure: {selectedProductForEdit.title}
+                            </Text>
 
-                              {expandedProducts[selectedProductForEdit.id]?.externalLinks?.length > 0 ? (
-                                <BlockStack gap="300">
-                                  {expandedProducts[selectedProductForEdit.id].externalLinks.map((link, index) => (
-                                    <Card key={index} background="bg-surface">
-                                      <BlockStack gap="300">
-                                        <InlineStack align="space-between" blockAlign="center">
-                                          <Text as="h5" variant="bodyMd" fontWeight="semibold">
-                                            Link {index + 1}
-                                          </Text>
-                                          <Button
-                                            onClick={() => removeExternalLink(selectedProductForEdit.id, index)}
-                                            icon={DeleteIcon}
-                                            variant="plain"
-                                            tone="critical"
-                                            size="medium"
-                                          >
-                                            Remove
-                                          </Button>
-                                        </InlineStack>
+                            {/* External Links Configuration */}
+                            <Card>
+                              <BlockStack gap="400">
+                                <InlineStack align="space-between" blockAlign="center">
+                                  <Text as="h4" variant="bodyLg" fontWeight="semibold">External Links</Text>
+                                  <Button
+                                    onClick={() => addExternalLink(selectedProductForEdit.id)}
+                                    icon={PlusIcon}
+                                    size="medium"
+                                  >
+                                    Add Link
+                                  </Button>
+                                </InlineStack>
 
-                                        <FormLayout>
-                                          <TextField
-                                            label="Destination URL"
-                                            value={link.url || ""}
-                                            onChange={(value) => updateExternalLink(selectedProductForEdit.id, index, "url", value)}
-                                            autoComplete="off"
-                                            placeholder="https://amazon.com/product/..."
-                                            helpText="Full URL where the button should redirect"
-                                          />
+                                {expandedProducts[selectedProductForEdit.id]?.externalLinks?.length > 0 ? (
+                                  <BlockStack gap="300">
+                                    {expandedProducts[selectedProductForEdit.id].externalLinks.map((link, index) => (
+                                      <Card key={index} background="bg-surface">
+                                        <BlockStack gap="300">
+                                          <InlineStack align="space-between" blockAlign="center">
+                                            <Text as="h5" variant="bodyMd" fontWeight="semibold">
+                                              Link {index + 1}
+                                            </Text>
+                                            <Button
+                                              onClick={() => removeExternalLink(selectedProductForEdit.id, index)}
+                                              icon={DeleteIcon}
+                                              variant="plain"
+                                              tone="critical"
+                                              size="medium"
+                                            >
+                                              Remove
+                                            </Button>
+                                          </InlineStack>
 
-                                          <TextField
-                                            label="Button text"
-                                            value={link.text || ""}
-                                            onChange={(value) => updateExternalLink(selectedProductForEdit.id, index, "text", value)}
-                                            autoComplete="off"
-                                            placeholder="Buy on Amazon"
-                                            helpText="Text displayed on the button"
-                                          />
+                                          <FormLayout>
+                                            <TextField
+                                              label="Destination URL"
+                                              name={`link_${index}_url`}
+                                              value={link.url || ""}
+                                              onChange={(value) => updateExternalLink(selectedProductForEdit.id, index, "url", value)}
+                                              autoComplete="off"
+                                              placeholder="https://amazon.com/product/..."
+                                              helpText="Full URL where the button should redirect"
+                                            />
 
-                                          <Checkbox
-                                            label="Enable this button"
-                                            checked={link.enabled !== false}
-                                            onChange={(checked) => updateExternalLink(selectedProductForEdit.id, index, "enabled", checked)}
-                                            helpText="When enabled, this button will be visible on the product page"
-                                          />
-                                        </FormLayout>
-                                      </BlockStack>
-                                    </Card>
-                                  ))}
-                                </BlockStack>
-                              ) : (
-                                <EmptyState
-                                  heading="No external links configured"
-                                  action={{
-                                    content: "Add your first link",
-                                    onAction: () => addExternalLink(selectedProductForEdit.id),
-                                    icon: PlusIcon
-                                  }}
-                                  image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-                                >
-                                  <Text as="p" variant="bodyMd">
-                                    Add external links (e.g., affiliate links) that will appear as buttons on your product page.
-                                  </Text>
-                                </EmptyState>
-                              )}
-                            </BlockStack>
-                          </Card>
+                                            <TextField
+                                              label="Button text"
+                                              name={`link_${index}_text`}
+                                              value={link.text || ""}
+                                              onChange={(value) => updateExternalLink(selectedProductForEdit.id, index, "text", value)}
+                                              autoComplete="off"
+                                              placeholder="Buy on Amazon"
+                                              helpText="Text displayed on the button"
+                                            />
 
-                          {/* Display Options */}
-                          <Card>
-                            <BlockStack gap="300">
-                              <Text as="h4" variant="bodyLg" fontWeight="semibold">Display Options</Text>
-                              <Checkbox
-                                label="Hide original 'Add to cart' button (experimental)"
-                                checked={expandedProducts[selectedProductForEdit.id]?.hideAtc || false}
-                                onChange={(checked) => setExpandedProducts(prev => ({
-                                  ...prev,
-                                  [selectedProductForEdit.id]: {
-                                    ...prev[selectedProductForEdit.id],
-                                    hideAtc: checked
-                                  }
-                                }))}
-                                helpText="WARNING: This feature may not work with all themes. Test before publishing."
-                              />
-                            </BlockStack>
-                          </Card>
+                                            <input type="hidden" name={`link_${index}_enabled_hidden`} value={link.enabled !== false ? "true" : "false"} />
+                                            <Checkbox
+                                              label="Enable this button"
+                                              name={`link_${index}_enabled`}
+                                              checked={link.enabled !== false}
+                                              onChange={(checked) => updateExternalLink(selectedProductForEdit.id, index, "enabled", checked)}
+                                              helpText="When enabled, this button will be visible on the product page"
+                                            />
+                                          </FormLayout>
+                                        </BlockStack>
+                                      </Card>
+                                    ))}
+                                  </BlockStack>
+                                ) : (
+                                  <EmptyState
+                                    heading="No external links configured"
+                                    action={{
+                                      content: "Add your first link",
+                                      onAction: () => addExternalLink(selectedProductForEdit.id),
+                                      icon: PlusIcon
+                                    }}
+                                    image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                                  >
+                                    <Text as="p" variant="bodyMd">
+                                      Add external links (e.g., affiliate links) that will appear as buttons on your product page.
+                                    </Text>
+                                  </EmptyState>
+                                )}
+                              </BlockStack>
+                            </Card>
 
-                          {/* Action Buttons */}
-                          <InlineStack gap="300" align="start">
-                            <Button
-                              variant="primary"
-                              onClick={() => saveProductConfiguration(selectedProductForEdit.id)}
-                              loading={expandedProducts[selectedProductForEdit.id]?.isSaving}
-                              disabled={expandedProducts[selectedProductForEdit.id]?.isSaving}
-                              icon={CheckIcon}
-                            >
-                              {expandedProducts[selectedProductForEdit.id]?.isSaving ? "Saving..." : "Save Configuration"}
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              onClick={() => handlePreviewProduct(selectedProductForEdit.handle)}
-                              icon={ViewIcon}
-                            >
-                              Preview Product
-                            </Button>
-                          </InlineStack>
-                        </BlockStack>
-                      </Card>
+                            {/* Display Options */}
+                            <Card>
+                              <BlockStack gap="300">
+                                <Text as="h4" variant="bodyLg" fontWeight="semibold">Display Options</Text>
+                                <input type="hidden" name="hideAtc_hidden" value={expandedProducts[selectedProductForEdit.id]?.hideAtc ? "true" : "false"} />
+                                <Checkbox
+                                  label="Hide original 'Add to cart' button (experimental)"
+                                  name="hideAtc"
+                                  checked={expandedProducts[selectedProductForEdit.id]?.hideAtc || false}
+                                  onChange={(checked) => setExpandedProducts(prev => ({
+                                    ...prev,
+                                    [selectedProductForEdit.id]: {
+                                      ...prev[selectedProductForEdit.id],
+                                      hideAtc: checked
+                                    }
+                                  }))}
+                                  helpText="WARNING: This feature may not work with all themes. Test before publishing."
+                                />
+                              </BlockStack>
+                            </Card>
+
+                            {/* Action Buttons */}
+                            <InlineStack gap="300" align="start">
+                              <Button
+                                variant="secondary"
+                                onClick={() => handlePreviewProduct(selectedProductForEdit.handle)}
+                                icon={ViewIcon}
+                              >
+                                Preview Product
+                              </Button>
+                            </InlineStack>
+                          </BlockStack>
+                        </Card>
+                      </Form>
                     )}
                   </BlockStack>
                 </Card>
@@ -1371,142 +1418,145 @@ export default function Index() {
 
                       {/* Expanded configuration section */}
                       {expandedProducts[product.id]?.isExpanded && (
-                        <Card background="bg-surface-secondary">
-                          <BlockStack gap="400">
-                            <InlineStack align="space-between" blockAlign="center">
-                              <Text variant="headingMd" as="h3">
-                                Configure: {product.title}
-                              </Text>
-                              {expandedProducts[product.id]?.isSaving && (
-                                <InlineStack gap="100" blockAlign="center">
-                                  <Spinner accessibilityLabel="Saving" size="small" />
-                                  <Badge tone="info">Saving...</Badge>
-                                </InlineStack>
-                              )}
-                            </InlineStack>
+                        <Form method="post" data-save-bar>
+                          <input type="hidden" name="actionType" value="save" />
+                          <input type="hidden" name="productId" value={product.id} />
+                          <input type="hidden" name="linkCount" value={expandedProducts[product.id]?.externalLinks?.length || 0} />
 
-                            {/* External Links Configuration */}
-                            <Card>
-                              <BlockStack gap="400">
-                                <InlineStack align="space-between" blockAlign="center">
-                                  <Text as="h4" variant="bodyLg" fontWeight="semibold">External Links</Text>
-                                  <Button
-                                    onClick={() => addExternalLink(product.id)}
-                                    icon={PlusIcon}
-                                    size="medium"
-                                  >
-                                    Add Link
-                                  </Button>
-                                </InlineStack>
-
-                                {expandedProducts[product.id]?.externalLinks?.length > 0 ? (
-                                  <BlockStack gap="300">
-                                    {expandedProducts[product.id].externalLinks.map((link, index) => (
-                                      <Card key={index} background="bg-surface">
-                                        <BlockStack gap="300">
-                                          <InlineStack align="space-between" blockAlign="center">
-                                            <Text as="h5" variant="bodyMd" fontWeight="semibold">
-                                              Link {index + 1}
-                                            </Text>
-                                            <Button
-                                              onClick={() => removeExternalLink(product.id, index)}
-                                              icon={DeleteIcon}
-                                              variant="plain"
-                                              tone="critical"
-                                              size="medium"
-                                            >
-                                              Remove
-                                            </Button>
-                                          </InlineStack>
-
-                                          <FormLayout>
-                                            <TextField
-                                              label="Destination URL"
-                                              value={link.url || ""}
-                                              onChange={(value) => updateExternalLink(product.id, index, "url", value)}
-                                              autoComplete="off"
-                                              placeholder="https://amazon.com/product/..."
-                                              helpText="Full URL where the button should redirect"
-                                            />
-
-                                            <TextField
-                                              label="Button text"
-                                              value={link.text || ""}
-                                              onChange={(value) => updateExternalLink(product.id, index, "text", value)}
-                                              autoComplete="off"
-                                              placeholder="Buy on Amazon"
-                                              helpText="Text displayed on the button"
-                                            />
-
-                                            <Checkbox
-                                              label="Enable this button"
-                                              checked={link.enabled !== false}
-                                              onChange={(checked) => updateExternalLink(product.id, index, "enabled", checked)}
-                                              helpText="When enabled, this button will be visible on the product page"
-                                            />
-                                          </FormLayout>
-                                        </BlockStack>
-                                      </Card>
-                                    ))}
-                                  </BlockStack>
-                                ) : (
-                                  <EmptyState
-                                    heading="No external links configured"
-                                    action={{
-                                      content: "Add your first link",
-                                      onAction: () => addExternalLink(product.id),
-                                      icon: PlusIcon
-                                    }}
-                                    image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-                                  >
-                                    <Text as="p" variant="bodyMd">
-                                      Add external links (e.g., affiliate links) that will appear as buttons on your product page.
-                                    </Text>
-                                  </EmptyState>
+                          <Card background="bg-surface-secondary">
+                            <BlockStack gap="400">
+                              <InlineStack align="space-between" blockAlign="center">
+                                <Text variant="headingMd" as="h3">
+                                  Configure: {product.title}
+                                </Text>
+                                {expandedProducts[product.id]?.isSaving && (
+                                  <InlineStack gap="100" blockAlign="center">
+                                    <Spinner accessibilityLabel="Saving" size="small" />
+                                    <Badge tone="info">Saving...</Badge>
+                                  </InlineStack>
                                 )}
-                              </BlockStack>
-                            </Card>
+                              </InlineStack>
 
-                            {/* Display Options */}
-                            <Card>
-                              <BlockStack gap="300">
-                                <Text as="h4" variant="bodyLg" fontWeight="semibold">Display Options</Text>
-                                <Checkbox
-                                  label="Hide original 'Add to cart' button (experimental)"
-                                  checked={expandedProducts[product.id]?.hideAtc || false}
-                                  onChange={(checked) => setExpandedProducts(prev => ({
-                                    ...prev,
-                                    [product.id]: {
-                                      ...prev[product.id],
-                                      hideAtc: checked
-                                    }
-                                  }))}
-                                  helpText="WARNING: This feature may not work with all themes. Test before publishing."
-                                />
-                              </BlockStack>
-                            </Card>
+                              {/* External Links Configuration */}
+                              <Card>
+                                <BlockStack gap="400">
+                                  <InlineStack align="space-between" blockAlign="center">
+                                    <Text as="h4" variant="bodyLg" fontWeight="semibold">External Links</Text>
+                                    <Button
+                                      onClick={() => addExternalLink(product.id)}
+                                      icon={PlusIcon}
+                                      size="medium"
+                                    >
+                                      Add Link
+                                    </Button>
+                                  </InlineStack>
 
-                            {/* Action Buttons */}
-                            <InlineStack gap="300" align="start">
-                              <Button
-                                variant="primary"
-                                onClick={() => saveProductConfiguration(product.id)}
-                                loading={expandedProducts[product.id]?.isSaving}
-                                disabled={expandedProducts[product.id]?.isSaving}
-                                icon={CheckIcon}
-                              >
-                                {expandedProducts[product.id]?.isSaving ? "Saving..." : "Save Configuration"}
-                              </Button>
-                              <Button
-                                variant="secondary"
-                                onClick={() => handlePreviewProduct(product.handle)}
-                                icon={ViewIcon}
-                              >
-                                Preview Product
-                              </Button>
-                            </InlineStack>
-                          </BlockStack>
-                        </Card>
+                                  {expandedProducts[product.id]?.externalLinks?.length > 0 ? (
+                                    <BlockStack gap="300">
+                                      {expandedProducts[product.id].externalLinks.map((link, index) => (
+                                        <Card key={index} background="bg-surface">
+                                          <BlockStack gap="300">
+                                            <InlineStack align="space-between" blockAlign="center">
+                                              <Text as="h5" variant="bodyMd" fontWeight="semibold">
+                                                Link {index + 1}
+                                              </Text>
+                                              <Button
+                                                onClick={() => removeExternalLink(product.id, index)}
+                                                icon={DeleteIcon}
+                                                variant="plain"
+                                                tone="critical"
+                                                size="medium"
+                                              >
+                                                Remove
+                                              </Button>
+                                            </InlineStack>
+
+                                            <FormLayout>
+                                              <TextField
+                                                label="Destination URL"
+                                                name={`link_${index}_url`}
+                                                value={link.url || ""}
+                                                onChange={(value) => updateExternalLink(product.id, index, "url", value)}
+                                                autoComplete="off"
+                                                placeholder="https://amazon.com/product/..."
+                                                helpText="Full URL where the button should redirect"
+                                              />
+
+                                              <TextField
+                                                label="Button text"
+                                                name={`link_${index}_text`}
+                                                value={link.text || ""}
+                                                onChange={(value) => updateExternalLink(product.id, index, "text", value)}
+                                                autoComplete="off"
+                                                placeholder="Buy on Amazon"
+                                                helpText="Text displayed on the button"
+                                              />
+
+                                              <input type="hidden" name={`link_${index}_enabled_hidden`} value={link.enabled !== false ? "true" : "false"} />
+                                              <Checkbox
+                                                label="Enable this button"
+                                                name={`link_${index}_enabled`}
+                                                checked={link.enabled !== false}
+                                                onChange={(checked) => updateExternalLink(product.id, index, "enabled", checked)}
+                                                helpText="When enabled, this button will be visible on the product page"
+                                              />
+                                            </FormLayout>
+                                          </BlockStack>
+                                        </Card>
+                                      ))}
+                                    </BlockStack>
+                                  ) : (
+                                    <EmptyState
+                                      heading="No external links configured"
+                                      action={{
+                                        content: "Add your first link",
+                                        onAction: () => addExternalLink(product.id),
+                                        icon: PlusIcon
+                                      }}
+                                      image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                                    >
+                                      <Text as="p" variant="bodyMd">
+                                        Add external links (e.g., affiliate links) that will appear as buttons on your product page.
+                                      </Text>
+                                    </EmptyState>
+                                  )}
+                                </BlockStack>
+                              </Card>
+
+                              {/* Display Options */}
+                              <Card>
+                                <BlockStack gap="300">
+                                  <Text as="h4" variant="bodyLg" fontWeight="semibold">Display Options</Text>
+                                  <input type="hidden" name="hideAtc_hidden" value={expandedProducts[product.id]?.hideAtc ? "true" : "false"} />
+                                  <Checkbox
+                                    label="Hide original 'Add to cart' button (experimental)"
+                                    name="hideAtc"
+                                    checked={expandedProducts[product.id]?.hideAtc || false}
+                                    onChange={(checked) => setExpandedProducts(prev => ({
+                                      ...prev,
+                                      [product.id]: {
+                                        ...prev[product.id],
+                                        hideAtc: checked
+                                      }
+                                    }))}
+                                    helpText="WARNING: This feature may not work with all themes. Test before publishing."
+                                  />
+                                </BlockStack>
+                              </Card>
+
+                              {/* Action Buttons */}
+                              <InlineStack gap="300" align="start">
+                                <Button
+                                  variant="secondary"
+                                  onClick={() => handlePreviewProduct(product.handle)}
+                                  icon={ViewIcon}
+                                >
+                                  Preview Product
+                                </Button>
+                              </InlineStack>
+                            </BlockStack>
+                          </Card>
+                        </Form>
                       )}
                     </Card>
                   ))}
@@ -1589,16 +1639,6 @@ export default function Index() {
                         Go to Product Configuration and select products you want to add external affiliate links to.
                         Set the destination URL and button text for each product.
                       </Text>
-                      <InlineStack gap="200">
-                        <Button
-                          onClick={handleOpenProductPicker}
-                          loading={isLoadingPicker}
-                          disabled={isLoadingPicker}
-                          icon={ProductIcon}
-                        >
-                          {isLoadingPicker ? "Selecting..." : "Configure products"}
-                        </Button>
-                      </InlineStack>
                     </BlockStack>
                   </Card>
 
@@ -1665,6 +1705,18 @@ export default function Index() {
                 transition={{ duration: '150ms', timingFunction: 'ease' }}
               >
                 <BlockStack gap="400">
+                  <Card>
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="bodyMd" fontWeight="semibold">
+                        How does the save functionality work?
+                      </Text>
+                      <Text as="p">
+                        When you make changes to product configurations, Shopify automatically detects form changes and shows a contextual save bar at the top of the page.
+                        The save bar appears automatically when you modify any form data and provides Save/Discard options.
+                      </Text>
+                    </BlockStack>
+                  </Card>
+
                   <Card>
                     <BlockStack gap="200">
                       <Text as="h3" variant="bodyMd" fontWeight="semibold">
