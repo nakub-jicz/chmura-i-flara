@@ -812,6 +812,14 @@ export default function Index() {
   const submit = useSubmit();
   const shopify = useAppBridge();
 
+  // App configuration
+  const APP_CLIENT_ID = "b47fbbd7a2798bdefa342301971e612b";
+  const EXTENSION_NAME = "external-button-block";
+
+  // Generate auto-add URL for theme editor
+  const getAutoAddUrl = () =>
+    `https://${shopDomain}/admin/themes/current/editor?template=product&addAppBlockId=${APP_CLIENT_ID}/${EXTENSION_NAME}&target=mainSection`;
+
   // Debug App Bridge availability
   useEffect(() => {
     console.log('=== APP BRIDGE DEBUG ===');
@@ -1331,9 +1339,10 @@ export default function Index() {
               title="⚠️ Important: Theme Setup Required"
               tone="warning"
               action={{
-                content: 'Open Theme Editor',
-                url: themeEditorUrl || `https://${loaderData.shopDomain}/admin/themes`,
-                external: true
+                content: 'Auto-Add Button Block',
+                onAction: () => {
+                  window.open(getAutoAddUrl(), '_blank');
+                }
               }}
             >
               <Text as="p">
@@ -1865,13 +1874,23 @@ export default function Index() {
                                   variant="tertiary"
                                   onClick={() => {
                                     // Force refresh product page in new tab with cache-busting parameter
-                                    const url = `https://${loaderData.shopDomain}/products/${product.handle}?cache_bust=${Date.now()}`;
+                                    const url = `https://${shopDomain}/products/${product.handle}?cache_bust=${Date.now()}`;
                                     window.open(url, '_blank');
                                     shopify?.toast?.show("Opening product page with cache refresh", { duration: 2000 });
                                   }}
                                   icon={ExternalIcon}
                                 >
                                   Force Refresh
+                                </Button>
+                                <Button
+                                  variant="plain"
+                                  onClick={() => {
+                                    window.open(getAutoAddUrl(), '_blank');
+                                    shopify?.toast?.show("Opening theme editor to add button block", { duration: 2000 });
+                                  }}
+                                  icon={ThemeIcon}
+                                >
+                                  Add Block to Theme
                                 </Button>
                               </InlineStack>
                             </BlockStack>
@@ -1973,8 +1992,12 @@ export default function Index() {
                         <strong>IMPORTANT:</strong> You need to add the "External Button" block to your product page in the theme editor.
                         This is a one-time setup required for the buttons to appear.
                       </Text>
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        <strong>Quick setup:</strong> Use the "Auto-Add Button Block" button below to automatically open the theme editor with the block ready to add.
+                      </Text>
                       <List type="bullet">
-                        <List.Item>Go to Online Store → Themes → Customize</List.Item>
+                        <List.Item><strong>Easy way:</strong> Click "Auto-Add Button Block" below</List.Item>
+                        <List.Item><strong>Manual way:</strong> Go to Online Store → Themes → Customize</List.Item>
                         <List.Item>Navigate to a product page</List.Item>
                         <List.Item>Find the product form section</List.Item>
                         <List.Item>Click "Add block" and select "External Button"</List.Item>
@@ -1982,9 +2005,18 @@ export default function Index() {
                         <List.Item>Save the theme</List.Item>
                       </List>
                       <InlineStack gap="200">
+                        <Button
+                          variant="primary"
+                          onClick={() => {
+                            window.open(getAutoAddUrl(), '_blank');
+                          }}
+                          icon={ThemeIcon}
+                        >
+                          Auto-Add Button Block
+                        </Button>
                         {themeEditorUrl && (
                           <Button
-                            variant="primary"
+                            variant="secondary"
                             onClick={() => window.open(themeEditorUrl, '_blank')}
                             icon={ThemeIcon}
                           >
