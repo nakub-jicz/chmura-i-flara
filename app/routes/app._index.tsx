@@ -45,6 +45,7 @@ import {
   ArrowLeftIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  XSmallIcon,
 } from '@shopify/polaris-icons';
 import { useAppBridge, SaveBar } from "@shopify/app-bridge-react";
 import { shopify } from "../shopify.server";
@@ -173,6 +174,8 @@ interface LoaderData {
   themeEditorUrl?: string;
   configuredProducts?: Product[];
   shopDomain?: string;
+  blockAutoInstalled?: boolean;
+  blockInstallationStatus?: string;
 }
 
 interface Metafield {
@@ -193,6 +196,242 @@ interface ExpandedProduct {
   externalLinks: ExternalLink[];
   hideAtc: boolean;
   isSaving: boolean;
+}
+
+// Auto-installation helper functions
+async function checkAutoInstallStatus(admin: any, shop: string): Promise<boolean> {
+  try {
+    // Use app metafields to track installation status
+    const query = `
+      query {
+        currentAppInstallation {
+          metafields(first: 1, namespace: "auto_install", key: "block_installed") {
+            nodes {
+              id
+              value
+            }
+          }
+        }
+      }
+    `;
+
+    const response = await admin.graphql(query);
+    const data = await response.json();
+
+    return data.data?.currentAppInstallation?.metafields?.nodes?.length > 0;
+  } catch (error) {
+    console.error('Error checking auto-install status:', error);
+    return false;
+  }
+}
+
+
+
+async function autoInstallAppBlock(admin: any, shop: string): Promise<{ success: boolean; status: string; message?: string }> {
+  try {
+    console.log('Starting auto-installation process...');
+
+    // 1. Get active theme
+    const themeQuery = `
+      query {
+        themes(first: 5, role: MAIN) {
+          nodes {
+            id
+            name
+            role
+          }
+        }
+      }
+    `;
+
+    const themeResponse = await admin.graphql(themeQuery);
+    const themeData = await themeResponse.json();
+
+    if (!themeData.data?.themes?.nodes?.length) {
+      return { success: false, status: "no_active_theme", message: "No active theme found" };
+    }
+
+    const activeTheme = themeData.data.themes.nodes[0];
+    const themeId = activeTheme.id.replace('gid://shopify/Theme/', '');
+
+    console.log('Found active theme:', activeTheme);
+
+    // 2. Get theme files to find product template
+    const filesQuery = `
+      query getThemeFiles($themeId: ID!) {
+        theme(id: $themeId) {
+          files(first: 100) {
+            nodes {
+              filename
+              body
+            }
+          }
+        }
+      }
+    `;
+
+    const filesResponse = await admin.graphql(filesQuery, {
+      variables: { themeId: activeTheme.id }
+    });
+
+    const filesData = await filesResponse.json();
+
+    if (!filesData.data?.theme?.files?.nodes) {
+      return { success: false, status: "no_theme_files", message: "Could not read theme files" };
+    }
+
+    // 3. Find product template
+    const productTemplates = filesData.data.theme.files.nodes.filter((file: any) =>
+      file.filename.includes('product') && file.filename.includes('.json')
+    );
+
+    if (productTemplates.length === 0) {
+      return { success: false, status: "no_product_template", message: "No product template found" };
+    }
+
+    // Use first product template found
+    const productTemplate = productTemplates[0];
+    let templateContent;
+
+    try {
+      templateContent = JSON.parse(productTemplate.body);
+    } catch (error) {
+      return { success: false, status: "invalid_template_json", message: "Could not parse template JSON" };
+    }
+
+    console.log('Found product template:', productTemplate.filename);
+
+    // 4. Check if our block is already added
+    const appBlockId = `b47fbbd7a2798bdefa342301971e612b/external-button-block`;
+    const hasOurBlock = JSON.stringify(templateContent).includes(appBlockId);
+
+    if (hasOurBlock) {
+      console.log('App block already exists in template');
+      await markAutoInstallComplete(admin);
+      return { success: true, status: "already_installed", message: "Block already exists in template" };
+    }
+
+    // 5. Add our block to the template
+    if (!templateContent.sections) templateContent.sections = {};
+    if (!templateContent.order) templateContent.order = [];
+
+    // Find product-form section or main section
+    const productFormSection = Object.keys(templateContent.sections).find(key =>
+      key.includes('product-form') || key.includes('main-product')
+    );
+
+    if (productFormSection && templateContent.sections[productFormSection]) {
+      const section = templateContent.sections[productFormSection];
+      if (!section.blocks) section.blocks = {};
+      if (!section.block_order) section.block_order = [];
+
+      // Add our block
+      const blockId = `external_button_${Date.now()}`;
+      section.blocks[blockId] = {
+        type: `${appBlockId}`,
+        settings: {}
+      };
+
+      // Add to block order (preferably after add to cart button)
+      const addToCartIndex = section.block_order.findIndex((id: string) =>
+        section.blocks[id]?.type?.includes('buy_buttons') ||
+        section.blocks[id]?.type?.includes('product_form')
+      );
+
+      if (addToCartIndex >= 0) {
+        section.block_order.splice(addToCartIndex + 1, 0, blockId);
+      } else {
+        section.block_order.push(blockId);
+      }
+
+      console.log('Added block to section:', productFormSection);
+    } else {
+      return { success: false, status: "no_suitable_section", message: "Could not find suitable section to add block" };
+    }
+
+    // 6. Update the theme template
+    const updateMutation = `
+      mutation themeFilesUpsert($themeId: ID!, $files: [ThemeFileInput!]!) {
+        themeFilesUpsert(themeId: $themeId, files: $files) {
+          themeFiles {
+            filename
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const updateResponse = await admin.graphql(updateMutation, {
+      variables: {
+        themeId: activeTheme.id,
+        files: [{
+          filename: productTemplate.filename,
+          body: JSON.stringify(templateContent, null, 2)
+        }]
+      }
+    });
+
+    const updateData = await updateResponse.json();
+
+    if (updateData.data?.themeFilesUpsert?.userErrors?.length > 0) {
+      console.error('Theme update errors:', updateData.data.themeFilesUpsert.userErrors);
+      return {
+        success: false,
+        status: "update_failed",
+        message: updateData.data.themeFilesUpsert.userErrors[0].message
+      };
+    }
+
+    // 7. Mark installation as complete
+    await markAutoInstallComplete(admin);
+
+    console.log('Successfully auto-installed app block');
+    return { success: true, status: "installed", message: "App block successfully added to theme" };
+
+  } catch (error) {
+    console.error('Error during auto-installation:', error);
+    return {
+      success: false,
+      status: "error",
+      message: error instanceof Error ? error.message : "Unknown error"
+    };
+  }
+}
+
+async function markAutoInstallComplete(admin: any): Promise<void> {
+  try {
+    const mutation = `
+      mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields {
+            id
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    await admin.graphql(mutation, {
+      variables: {
+        metafields: [{
+          namespace: "auto_install",
+          key: "block_installed",
+          value: new Date().toISOString(),
+          type: "single_line_text_field"
+        }]
+      }
+    });
+
+    console.log('Marked auto-install as complete');
+  } catch (error) {
+    console.error('Error marking auto-install complete:', error);
+  }
 }
 
 export const action = async ({ request, context }: ActionFunctionArgs) => {
@@ -219,6 +458,8 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
     for (const [key, value] of formData.entries()) {
       console.log(`  ${key}: "${value}" (type: ${typeof value})`);
     }
+
+
 
     if (actionType === "save" && productId) {
       // Save product configuration
@@ -796,8 +1037,40 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
     }
   }
 
+
+
+  // Auto-install app block to theme (one-time)
+  let blockAutoInstalled = false;
+  let blockInstallationStatus = "not_attempted";
+
+  try {
+    // Check if auto-installation has already been attempted
+    const autoInstallAttempted = await checkAutoInstallStatus(admin, session.shop);
+
+    if (!autoInstallAttempted && configuredProducts.length > 0) {
+      console.log('=== ATTEMPTING AUTO-INSTALL OF APP BLOCK ===');
+      const installResult = await autoInstallAppBlock(admin, session.shop);
+      blockAutoInstalled = installResult.success;
+      blockInstallationStatus = installResult.status;
+      console.log('Auto-install result:', installResult);
+    } else if (autoInstallAttempted) {
+      blockInstallationStatus = "previously_attempted";
+    }
+  } catch (error) {
+    console.error('Error during auto-installation:', error);
+    blockInstallationStatus = "error";
+  }
+
   console.log('=== LOADER END ===');
-  const result = { themeEditorUrl, configuredProducts, shopDomain: session.shop };
+  console.log('blockInstallationStatus:', blockInstallationStatus);
+  console.log('configuredProducts count:', configuredProducts.length);
+  const result = {
+    themeEditorUrl,
+    configuredProducts,
+    shopDomain: session.shop,
+    blockAutoInstalled,
+    blockInstallationStatus
+  };
   console.log('Returning from loader:', result);
 
   return json(result);
@@ -809,12 +1082,22 @@ export default function Index() {
   const themeEditorUrl = loaderData?.themeEditorUrl || "#";
   const configuredProducts = loaderData?.configuredProducts || [];
   const shopDomain = loaderData?.shopDomain || "";
+  const blockAutoInstalled = loaderData?.blockAutoInstalled || false;
+  const blockInstallationStatus = loaderData?.blockInstallationStatus || "not_attempted";
   const submit = useSubmit();
   const shopify = useAppBridge();
 
   // App configuration
   const APP_CLIENT_ID = "b47fbbd7a2798bdefa342301971e612b";
   const EXTENSION_NAME = "external-button-block";
+
+  // State for dismissible notifications
+  const [autoInstallNotificationDismissed, setAutoInstallNotificationDismissed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('dc-auto-install-notification-dismissed') === 'true';
+    }
+    return false;
+  });
 
   // Generate auto-add URL for theme editor
   const getAutoAddUrl = () =>
@@ -831,6 +1114,14 @@ export default function Index() {
     shopify?.toast?.show("Opening theme editor to add button block", { duration: 2000 });
   };
 
+  // Function to dismiss auto-install notification
+  const dismissAutoInstallNotification = () => {
+    setAutoInstallNotificationDismissed(true);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dc-auto-install-notification-dismissed', 'true');
+    }
+  };
+
   // Debug App Bridge availability
   useEffect(() => {
     console.log('=== APP BRIDGE DEBUG ===');
@@ -838,6 +1129,21 @@ export default function Index() {
     console.log('App Bridge type:', typeof shopify);
     console.log('Window shopify:', window.shopify);
     console.log('App Bridge methods available:', Object.keys(shopify || {}));
+
+    // Debug notification display logic
+    console.log('=== NOTIFICATION DEBUG ===');
+    console.log('autoInstallNotificationDismissed:', autoInstallNotificationDismissed);
+    console.log('blockInstallationStatus:', blockInstallationStatus);
+    console.log('configuredProducts.length:', configuredProducts.length);
+    console.log('blockLikelyAdded:', blockLikelyAdded);
+
+    const shouldShowSuccess = !autoInstallNotificationDismissed && (blockInstallationStatus === "installed" || blockInstallationStatus === "already_installed");
+    const shouldShowError = !autoInstallNotificationDismissed && blockInstallationStatus === "error";
+    const shouldShowSetup = blockInstallationStatus === "not_attempted" && configuredProducts && configuredProducts.length > 0 && !blockLikelyAdded;
+
+    console.log('shouldShowSuccess:', shouldShowSuccess);
+    console.log('shouldShowError:', shouldShowError);
+    console.log('shouldShowSetup:', shouldShowSetup);
 
     // Test specific methods
     if (shopify) {
@@ -1351,20 +1657,28 @@ export default function Index() {
       }}
     >
       <Layout>
-        {/* Theme Setup Reminder - only show if user has products configured but likely hasn't added the block */}
-        {configuredProducts && configuredProducts.length > 0 && !blockLikelyAdded && (
+        {/* Theme Setup Information - Show if user hasn't dismissed */}
+        {!autoInstallNotificationDismissed && (
           <Layout.Section>
             <Banner
-              title="Setup reminder"
+              title="Theme Setup Required"
               tone="info"
               action={{
-                content: 'Auto-Add Button Block',
+                content: 'Add to Theme',
                 onAction: handleAutoAddBlock
               }}
             >
-              <Text as="p">
-                Don't see buttons on your product pages yet? You need to add the "External Button" block to your theme (one-time setup).
-              </Text>
+              <InlineStack align="space-between" blockAlign="start">
+                <Text as="p" variant="bodyMd">
+                  To display external buttons on your product pages, add the "External Button" block to your theme (one-time setup).
+                </Text>
+                <Button
+                  variant="plain"
+                  icon={XSmallIcon}
+                  onClick={dismissAutoInstallNotification}
+                  accessibilityLabel="Dismiss notification"
+                />
+              </InlineStack>
             </Banner>
           </Layout.Section>
         )}
@@ -2127,25 +2441,37 @@ export default function Index() {
                   <Card>
                     <BlockStack gap="200">
                       <Text as="h3" variant="bodyMd" fontWeight="semibold">
-                        Why don't I see the external buttons on my product pages?
+                        🚀 Auto-Installation System
                       </Text>
                       <Text as="p">
-                        <strong>Most common reason:</strong> You haven't added the "External Button" block to your theme yet.
-                        This is a required one-time setup step.
-                      </Text>
-                      <List type="bullet">
-                        <List.Item>Go to Online Store → Themes → Customize</List.Item>
-                        <List.Item>Navigate to any product page</List.Item>
-                        <List.Item>Find the product form section (where Add to Cart button is)</List.Item>
-                        <List.Item>Click "Add block" and select "External Button"</List.Item>
-                        <List.Item>Position it where you want the external buttons to appear</List.Item>
-                        <List.Item>Save the theme</List.Item>
-                      </List>
-                      <Text as="p">
-                        After this setup, buttons will automatically appear on any product page where you've configured external links.
+                        <strong>NEW:</strong> The app now attempts to automatically add the button block to your theme when you configure your first product.
                       </Text>
                       <Text as="p" variant="bodyMd" tone="subdued">
-                        <strong>Still having issues?</strong> You can{' '}
+                        <strong>Auto-install status:</strong> {
+                          blockInstallationStatus === "installed" ? "✅ Success" :
+                            blockInstallationStatus === "already_installed" ? "✅ Already configured" :
+                              blockInstallationStatus === "error" ? "❌ Failed" :
+                                blockInstallationStatus === "previously_attempted" ? "⏭️ Previously attempted" :
+                                  "⏳ Pending"
+                        }
+                      </Text>
+                      {blockInstallationStatus === "error" && (
+                        <>
+                          <Text as="p">
+                            <strong>Manual setup required:</strong> Auto-installation failed, so you'll need to add the block manually.
+                          </Text>
+                          <List type="bullet">
+                            <List.Item>Go to Online Store → Themes → Customize</List.Item>
+                            <List.Item>Navigate to any product page</List.Item>
+                            <List.Item>Find the product form section (where Add to Cart button is)</List.Item>
+                            <List.Item>Click "Add block" and select "External Button"</List.Item>
+                            <List.Item>Position it where you want the external buttons to appear</List.Item>
+                            <List.Item>Save the theme</List.Item>
+                          </List>
+                        </>
+                      )}
+                      <Text as="p" variant="bodyMd" tone="subdued">
+                        <strong>For debugging:</strong> You can{' '}
                         <Button
                           variant="plain"
                           onClick={() => {
