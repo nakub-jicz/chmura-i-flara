@@ -13,11 +13,14 @@
 {% assign mf_button_text = product.metafields[ns].button_text %}
 {% assign mf_is_enabled = product.metafields[ns].is_enabled %}
 
-{% comment %} --- Check for links --- {% endcomment %}
+{% comment %} --- Check for links or hide_atc setting --- {% endcomment %}
 {% assign has_new_format = false %}
 {% assign has_legacy_format = false %}
 
 {% if mf_external_links.value != blank %}
+  {% assign has_new_format = true %}
+{% elsif mf_hide_atc.value == "true" %}
+  {% comment %} --- Show container even with empty links if hide_atc is enabled --- {% endcomment %}
   {% assign has_new_format = true %}
 {% endif %}
 
@@ -52,7 +55,7 @@
        data-product-id="{{ product.id }}"
        data-atc-override-selector="{{ block.settings.atc_selector_override | escape }}"
        data-hide-atc="{{ mf_hide_atc.value }}"
-       data-external-links="{{ mf_external_links.value | json | escape }}"
+       data-external-links="{{ mf_external_links.value | default: '[]' | json | escape }}"
        data-timestamp="{{ 'now' | date: '%s' }}"
        {{ block.shopify_attributes }}>
     

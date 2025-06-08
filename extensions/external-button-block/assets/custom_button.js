@@ -201,11 +201,14 @@
       try {
         this.log('Inicjalizacja ukrywania przycisków ATC');
 
+        // Najpierw przywróć wszystkie wcześniej ukryte przyciski
+        this.restoreATC();
+
         // Znajdź kontenery z włączonym ukrywaniem ATC
         const containersWithHideATC = document.querySelectorAll('.custom-external-button-container[data-hide-atc="true"]');
 
         if (containersWithHideATC.length === 0) {
-          this.log('Brak kontenerów z włączonym ukrywaniem ATC');
+          this.log('Brak kontenerów z włączonym ukrywaniem ATC - wszystkie przyciski zostały przywrócone');
           return 0;
         }
 
@@ -309,14 +312,14 @@
       // Renderuj przyciski z JSON data
       this.renderExternalButtons();
 
-      // Sprawdź czy są przyciski do ukrycia - tylko uruchom jeśli są kontenery z hide-atc
+      // Sprawdź ukrywanie ATC dla wszystkich kontenerów
       setTimeout(() => {
-        const containers = document.querySelectorAll('.custom-external-button-container[data-hide-atc="true"]');
+        const containers = document.querySelectorAll('.custom-external-button-container');
         if (containers.length > 0) {
-          this.log(`Znaleziono ${containers.length} kontenerów z ukrywaniem ATC`);
+          this.log(`Znaleziono ${containers.length} kontenerów - sprawdzanie ukrywania ATC`);
           this.initHideATC();
         } else {
-          this.log('Brak kontenerów wymagających ukrycia ATC');
+          this.log('Brak kontenerów');
         }
       }, 500); // Krótkie opóźnienie żeby wszystko się załadowało
 
@@ -327,7 +330,7 @@
 
         // Ponownie sprawdź ukrywanie ATC po załadowaniu DOM
         setTimeout(() => {
-          const containers = document.querySelectorAll('.custom-external-button-container[data-hide-atc="true"]');
+          const containers = document.querySelectorAll('.custom-external-button-container');
           if (containers.length > 0) {
             this.initHideATC();
           }
@@ -342,9 +345,9 @@
               const addedNodes = Array.from(mutation.addedNodes);
               addedNodes.forEach(node => {
                 if (node.nodeType === 1 && node.querySelector) {
-                  // Sprawdź czy dodano kontener z ukrywaniem ATC
-                  if (node.querySelector('.custom-external-button-container[data-hide-atc="true"]')) {
-                    this.log('Nowy kontener z ukrywaniem ATC - uruchamiam inicjalizację');
+                  // Sprawdź czy dodano kontener z ATC (włączonym lub wyłączonym)
+                  if (node.querySelector('.custom-external-button-container')) {
+                    this.log('Nowy kontener - sprawdzam ukrywanie ATC');
                     setTimeout(() => this.initHideATC(), 100);
                   }
                   // Sprawdź czy dodano kontener z zewnętrznymi linkami

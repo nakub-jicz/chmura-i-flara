@@ -1018,7 +1018,7 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
 
         console.log(`Product ${product.title} data:`, productData);
         return productData;
-      }).filter((product: Product) => product.hasMetafields && (product.externalUrl || product.buttonText || product.externalLinks.length > 0)); // Only show products with metafields and some configuration
+      }).filter((product: Product) => product.hasMetafields); // Show all products with metafields (including those with empty link arrays)
 
       console.log("Products with metafields:", configuredProducts.length);
     }
@@ -1263,7 +1263,7 @@ export default function Index() {
           window.shopify.toast.show(`Selected: ${selected.title}`, { duration: 3000 });
         }
 
-        // Create new product entry for editing
+        // Create new product entry and add it to the list
         // Handle different types of selected resources
         const selectedProduct = selected as any; // Type assertion for compatibility
         const newProduct: Product = {
@@ -1280,24 +1280,13 @@ export default function Index() {
           externalLinks: []
         };
 
-        // Expand this product for editing
-        const newExpanded = {
-          id: selected.id,
-          isExpanded: true,
-          isEditing: true,
-          externalLinks: [{ url: "", text: "", enabled: true }],
-          hideAtc: false,
-          isSaving: false
-        };
+        // Save the product to add it to the configured products list
+        const formData = new FormData();
+        formData.set("actionType", "save");
+        formData.set("productId", selectedProduct.id);
+        formData.set("linkCount", "0"); // No links initially
 
-
-
-        setExpandedProducts(prev => ({
-          ...prev,
-          [selected.id]: newExpanded
-        }));
-
-        setSelectedProductForEdit(newProduct);
+        submit(formData, { method: "post" });
       } else {
         if (window.shopify?.toast) {
           window.shopify.toast.show("No product selected", { duration: 2000 });
@@ -1367,9 +1356,7 @@ export default function Index() {
         console.log(`Product data:`, product);
         console.log(`Product external links:`, product.externalLinks);
 
-        const externalLinks = product.externalLinks.length > 0
-          ? product.externalLinks
-          : [{ url: "", text: "", enabled: true }];
+        const externalLinks = product.externalLinks;
 
         console.log(`Using external links:`, externalLinks);
 
@@ -2083,19 +2070,22 @@ export default function Index() {
                               {product.title}
                             </Text>
                             <InlineStack gap="200" blockAlign="center" wrap={false}>
-                              <Badge tone={product.isEnabled ? "success" : "critical"}>
-                                {product.isEnabled ? "Enabled" : "Disabled"}
-                              </Badge>
-                              {product.hasMultipleLinks && (
-                                <Badge tone="info">
-                                  Multiple links
+                              <InlineStack gap="100" blockAlign="center">
+                                <Badge tone={product.isEnabled ? "success" : "critical"}>
+                                  {product.isEnabled ? "Enabled" : "Disabled"}
                                 </Badge>
-                              )}
-                              {product.buttonText && (
-                                <Text as="span" variant="bodyMd" tone="subdued">
-                                  Button: "{product.buttonText}"
-                                </Text>
-                              )}
+                                {product.hasMultipleLinks && (
+                                  <Badge tone="info">
+                                    Multiple links
+                                  </Badge>
+                                )}
+                                {product.buttonText && (
+                                  <Text as="span" variant="bodyMd" tone="subdued">
+                                    Button: "{product.buttonText}"
+                                  </Text>
+                                )}
+                              </InlineStack>
+
                             </InlineStack>
                             {product.externalUrl && (
                               <InlineStack gap="100" blockAlign="center">
@@ -2468,7 +2458,7 @@ export default function Index() {
                   <Card>
                     <BlockStack gap="300">
                       <InlineStack gap="200" blockAlign="center">
-                        <Badge tone="success">Step 3</Badge>
+                        <Badge tone="success">Step 4</Badge>
                         <Text as="h3" variant="bodyLg" fontWeight="semibold">Test and publish</Text>
                       </InlineStack>
                       <Text as="p">
