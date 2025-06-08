@@ -46,6 +46,26 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   XSmallIcon,
+  SaveIcon,
+  ResetIcon,
+  SearchIcon,
+  RefreshIcon,
+  StarIcon,
+  GiftCardIcon,
+  TextIcon,
+  DuplicateIcon,
+  BugIcon,
+  EmailIcon,
+  MagicIcon,
+  NoteIcon,
+  ClockIcon,
+  LocationIcon,
+  MoneyIcon,
+  MenuHorizontalIcon,
+  MenuVerticalIcon,
+  HomeIcon,
+  AppsIcon,
+  CodeIcon,
 } from '@shopify/polaris-icons';
 import { useAppBridge, SaveBar } from "@shopify/app-bridge-react";
 import { shopify } from "../shopify.server";
@@ -1836,6 +1856,7 @@ export default function Index() {
                       loading={isLoadingPicker}
                       variant="primary"
                       disabled={isLoadingPicker}
+                      icon={isLoadingPicker ? SearchIcon : PlusIcon}
                     >
                       {isLoadingPicker ? 'Opening picker...' : 'Add Product'}
                     </Button>
@@ -2306,6 +2327,7 @@ export default function Index() {
                                   }}
                                   loading={expandedProducts[product.id]?.isSaving}
                                   disabled={expandedProducts[product.id]?.isSaving || !hasUnsavedChanges(product.id)}
+                                  icon={expandedProducts[product.id]?.isSaving ? ClockIcon : SaveIcon}
                                 >
                                   {expandedProducts[product.id]?.isSaving ? "Saving..." : "Save Changes"}
                                 </Button>
@@ -2352,15 +2374,15 @@ export default function Index() {
             <BlockStack gap="400">
               <Text variant="headingMd" as="h2">App status</Text>
               <BlockStack gap="300">
-                <InlineStack gap="200" blockAlign="center">
+                <InlineStack gap="300" blockAlign="center">
                   <Badge tone="success">Active</Badge>
                   <Text as="p">App installed and running</Text>
                 </InlineStack>
-                <InlineStack gap="200" blockAlign="center">
+                <InlineStack gap="300" blockAlign="center">
                   <Badge tone="success">Ready</Badge>
                   <Text as="p">Theme extension available</Text>
                 </InlineStack>
-                <InlineStack gap="200" blockAlign="center">
+                <InlineStack gap="300" blockAlign="center">
                   <Badge tone="info">Setup</Badge>
                   <Text as="p">Ready for product configuration</Text>
                 </InlineStack>
@@ -2432,7 +2454,7 @@ export default function Index() {
                         <Button
                           variant="primary"
                           onClick={handleAutoAddBlock}
-                          icon={ThemeIcon}
+                          icon={MagicIcon}
                         >
                           Auto-Add Button Block
                         </Button>
@@ -2552,7 +2574,7 @@ export default function Index() {
                         <Button
                           variant="primary"
                           onClick={handleAutoAddBlock}
-                          icon={ThemeIcon}
+                          icon={MagicIcon}
                         >
                           Auto-Add Button Block
                         </Button>
@@ -2600,7 +2622,7 @@ export default function Index() {
                 or contact technical support.
               </Text>
               <InlineStack gap="200">
-                <Button variant="secondary" icon={ExternalIcon}>
+                <Button variant="secondary" icon={EmailIcon}>
                   Report issue
                 </Button>
               </InlineStack>
