@@ -1411,12 +1411,54 @@ export default function Index() {
 
   // Save single product configuration (used by individual save buttons)
   const saveProductConfiguration = (productId: string) => {
-    console.log(`=== SAVE PRODUCT CONFIGURATION (OLD BUTTON) ===`);
-    console.log(`This should trigger SaveBar instead`);
+    console.log(`=== SAVE PRODUCT CONFIGURATION (DIRECT SAVE) ===`);
+    console.log(`Saving directly from Save Changes button for product:`, productId);
 
-    // Show SaveBar for manual saving
-    setSaveBarVisible(true);
-    setCurrentSavingProductId(productId);
+    const expandedProduct = expandedProducts[productId];
+    if (!expandedProduct) {
+      console.error('No expanded product found for ID:', productId);
+      shopify?.toast?.show("Error: Product data not found", { isError: true, duration: 3000 });
+      return;
+    }
+
+    // Set saving state
+    setExpandedProducts(prev => ({
+      ...prev,
+      [productId]: { ...prev[productId], isSaving: true }
+    }));
+
+    // Filter out empty links before saving
+    const validLinks = expandedProduct.externalLinks.filter(link => !isEmptyLink(link));
+
+    // Create form data with the same logic as SaveBar
+    const formData = new FormData();
+    formData.set("actionType", "save");
+    formData.set("productId", productId);
+    formData.set("linkCount", validLinks.length.toString());
+
+    // Add each valid external link's data
+    validLinks.forEach((link, index) => {
+      formData.set(`link_${index}_url`, link.url || "");
+      formData.set(`link_${index}_text`, link.text || "");
+      if (link.enabled) {
+        formData.set(`link_${index}_enabled`, "on");
+      }
+    });
+
+    // Hide ATC checkbox
+    if (expandedProduct.hideAtc) {
+      formData.set("hideAtc", "on");
+    }
+
+    console.log('Form data being submitted:', Object.fromEntries(formData.entries()));
+
+    // Hide SaveBar since we're saving directly
+    setSaveBarVisible(false);
+    setCurrentSavingProductId(null);
+
+    // Submit the form
+    submit(formData, { method: "post" });
+    shopify?.toast?.show("Saving configuration...", { duration: 2000 });
   };
 
   // SaveBar handlers
@@ -1433,13 +1475,16 @@ export default function Index() {
         [currentSavingProductId]: { ...prev[currentSavingProductId], isSaving: true }
       }));
 
+      // Filter out empty links before saving
+      const validLinks = expandedProduct.externalLinks.filter(link => !isEmptyLink(link));
+
       const formData = new FormData();
       formData.set("actionType", "save");
       formData.set("productId", currentSavingProductId);
-      formData.set("linkCount", expandedProduct.externalLinks.length.toString());
+      formData.set("linkCount", validLinks.length.toString());
 
-      // Add each external link's data
-      expandedProduct.externalLinks.forEach((link, index) => {
+      // Add each valid external link's data
+      validLinks.forEach((link, index) => {
         formData.set(`link_${index}_url`, link.url || "");
         formData.set(`link_${index}_text`, link.text || "");
         if (link.enabled) {
@@ -1460,13 +1505,36 @@ export default function Index() {
   }, [currentSavingProductId, expandedProducts, submit, shopify]);
 
   const handleSaveBarDiscard = useCallback(() => {
-    console.log('SaveBar Discard clicked');
+    console.log('SaveBar Discard clicked for product:', currentSavingProductId);
+
+    if (currentSavingProductId) {
+      // Find original product data to restore
+      const originalProduct = configuredProducts.find(p => p.id === currentSavingProductId);
+
+      if (originalProduct) {
+        console.log('Restoring original data for product:', originalProduct.title);
+
+        // Restore the expanded product state to original values
+        setExpandedProducts(prev => ({
+          ...prev,
+          [currentSavingProductId]: {
+            ...prev[currentSavingProductId],
+            externalLinks: [...originalProduct.externalLinks], // Deep copy to reset to original external links
+            hideAtc: originalProduct.hideAtc, // Reset hideAtc checkbox
+            isSaving: false
+          }
+        }));
+
+        console.log('State restored to original values');
+      } else {
+        console.log('No original product found for ID:', currentSavingProductId);
+      }
+    }
+
     setSaveBarVisible(false);
     setCurrentSavingProductId(null);
-
-    // Could add logic to revert changes here if needed
     shopify?.toast?.show("Changes discarded", { duration: 2000 });
-  }, [shopify]);
+  }, [currentSavingProductId, configuredProducts, shopify]);
 
   // Update external link in expanded product
   const updateExternalLink = (productId: string, index: number, field: keyof ExternalLink, value: string | boolean) => {
@@ -1504,15 +1572,31 @@ export default function Index() {
       console.log(`New product state:`, newState[productId]);
       console.log(`=== END UPDATE EXTERNAL LINK ===`);
 
-      // Show SaveBar when changes are made
-      setSaveBarVisible(true);
-      setCurrentSavingProductId(productId);
-
+      // Check if there are actual changes after the update to decide whether to show SaveBar
+      // We need to check against the new state, so we'll do this after setting state
       return newState;
     });
   };
 
-  // Add new external link
+  // Show SaveBar when there are actual unsaved changes
+  useEffect(() => {
+    // Check if any product has unsaved changes
+    const productWithChanges = Object.keys(expandedProducts).find(productId =>
+      expandedProducts[productId]?.isExpanded && hasUnsavedChanges(productId)
+    );
+
+    if (productWithChanges && !saveBarVisible && !expandedProducts[productWithChanges]?.isSaving) {
+      console.log('Showing SaveBar for product with changes:', productWithChanges);
+      setSaveBarVisible(true);
+      setCurrentSavingProductId(productWithChanges);
+    } else if (!productWithChanges && saveBarVisible) {
+      console.log('Hiding SaveBar - no products with changes');
+      setSaveBarVisible(false);
+      setCurrentSavingProductId(null);
+    }
+  }, [expandedProducts, configuredProducts, saveBarVisible]);
+
+  // Add new external link (add to the beginning of the list)
   const addExternalLink = (productId: string) => {
     setExpandedProducts(prev => {
       if (!prev[productId]) return prev;
@@ -1520,7 +1604,7 @@ export default function Index() {
         ...prev,
         [productId]: {
           ...prev[productId],
-          externalLinks: [...prev[productId].externalLinks, { url: "", text: "", enabled: true }]
+          externalLinks: [{ url: "", text: "", enabled: true }, ...prev[productId].externalLinks]
         }
       };
     });
@@ -1643,6 +1727,49 @@ export default function Index() {
       // If URL parsing fails, just truncate the string
       return url.substring(0, maxLength - 3) + '...';
     }
+  };
+
+  // Helper function to check if a link is empty (no URL - URL is required)
+  const isEmptyLink = (link: ExternalLink): boolean => {
+    return (!link.url || link.url.trim() === '');
+  };
+
+  // Function to check if there are any unsaved changes for a product
+  const hasUnsavedChanges = (productId: string): boolean => {
+    const expandedProduct = expandedProducts[productId];
+    const originalProduct = configuredProducts.find(p => p.id === productId);
+
+    if (!expandedProduct || !originalProduct) {
+      return false;
+    }
+
+    // Check if hideAtc has changed
+    if (expandedProduct.hideAtc !== originalProduct.hideAtc) {
+      return true;
+    }
+
+    // Filter out empty links before comparison
+    const currentLinks = expandedProduct.externalLinks.filter(link => !isEmptyLink(link));
+    const originalLinks = originalProduct.externalLinks.filter(link => !isEmptyLink(link));
+
+    // Check if arrays have different lengths (after filtering empty links)
+    if (currentLinks.length !== originalLinks.length) {
+      return true;
+    }
+
+    // Deep compare each non-empty link
+    for (let i = 0; i < currentLinks.length; i++) {
+      const current = currentLinks[i];
+      const original = originalLinks[i];
+
+      if (current.url !== original.url ||
+        current.text !== original.text ||
+        current.enabled !== original.enabled) {
+        return true;
+      }
+    }
+
+    return false;
   };
 
   return (
@@ -1793,7 +1920,7 @@ export default function Index() {
                                         <BlockStack gap="300">
                                           <InlineStack align="space-between" blockAlign="center">
                                             <Text as="h5" variant="bodyMd" fontWeight="semibold">
-                                              Link {index + 1}
+                                              Link {expandedProducts[selectedProductForEdit.id].externalLinks.length - index}
                                             </Text>
                                             <Button
                                               onClick={() => removeExternalLink(selectedProductForEdit.id, index)}
@@ -1808,18 +1935,6 @@ export default function Index() {
 
                                           <FormLayout>
                                             <TextField
-                                              label="Destination URL"
-                                              name={`link_${index}_url`}
-                                              value={link.url || ""}
-                                              onChange={(value) => {
-                                                updateExternalLink(selectedProductForEdit.id, index, "url", value);
-                                              }}
-                                              autoComplete="off"
-                                              placeholder="https://amazon.com/product/..."
-                                              helpText="Full URL where the button should redirect"
-                                            />
-
-                                            <TextField
                                               label="Button text"
                                               name={`link_${index}_text`}
                                               value={link.text || ""}
@@ -1829,6 +1944,18 @@ export default function Index() {
                                               autoComplete="off"
                                               placeholder="Buy on Amazon"
                                               helpText="Text displayed on the button"
+                                            />
+
+                                            <TextField
+                                              label="Destination URL"
+                                              name={`link_${index}_url`}
+                                              value={link.url || ""}
+                                              onChange={(value) => {
+                                                updateExternalLink(selectedProductForEdit.id, index, "url", value);
+                                              }}
+                                              autoComplete="off"
+                                              placeholder="https://amazon.com/product/..."
+                                              helpText="Full URL where the button should redirect"
                                             />
 
                                             <Checkbox
@@ -2061,7 +2188,7 @@ export default function Index() {
                                           <BlockStack gap="300">
                                             <InlineStack align="space-between" blockAlign="center">
                                               <Text as="h5" variant="bodyMd" fontWeight="semibold">
-                                                Link {index + 1}
+                                                Link {expandedProducts[product.id].externalLinks.length - index}
                                               </Text>
                                               <Button
                                                 onClick={() => removeExternalLink(product.id, index)}
@@ -2076,18 +2203,6 @@ export default function Index() {
 
                                             <FormLayout>
                                               <TextField
-                                                label="Destination URL"
-                                                name={`link_${index}_url`}
-                                                value={link.url || ""}
-                                                onChange={(value) => {
-                                                  updateExternalLink(product.id, index, "url", value);
-                                                }}
-                                                autoComplete="off"
-                                                placeholder="https://amazon.com/product/..."
-                                                helpText="Full URL where the button should redirect"
-                                              />
-
-                                              <TextField
                                                 label="Button text"
                                                 name={`link_${index}_text`}
                                                 value={link.text || ""}
@@ -2097,6 +2212,18 @@ export default function Index() {
                                                 autoComplete="off"
                                                 placeholder="Buy on Amazon"
                                                 helpText="Text displayed on the button"
+                                              />
+
+                                              <TextField
+                                                label="Destination URL"
+                                                name={`link_${index}_url`}
+                                                value={link.url || ""}
+                                                onChange={(value) => {
+                                                  updateExternalLink(product.id, index, "url", value);
+                                                }}
+                                                autoComplete="off"
+                                                placeholder="https://amazon.com/product/..."
+                                                helpText="Full URL where the button should redirect"
                                               />
 
                                               <Checkbox
@@ -2189,7 +2316,7 @@ export default function Index() {
                                     saveProductConfiguration(product.id);
                                   }}
                                   loading={expandedProducts[product.id]?.isSaving}
-                                  disabled={expandedProducts[product.id]?.isSaving}
+                                  disabled={expandedProducts[product.id]?.isSaving || !hasUnsavedChanges(product.id)}
                                 >
                                   {expandedProducts[product.id]?.isSaving ? "Saving..." : "Save Changes"}
                                 </Button>
@@ -2199,25 +2326,6 @@ export default function Index() {
                                   icon={ViewIcon}
                                 >
                                   Preview Product
-                                </Button>
-                                <Button
-                                  variant="tertiary"
-                                  onClick={() => {
-                                    // Force refresh product page in new tab with cache-busting parameter
-                                    const url = `https://${shopDomain}/products/${product.handle}?cache_bust=${Date.now()}`;
-                                    window.open(url, '_blank');
-                                    shopify?.toast?.show("Opening product page with cache refresh", { duration: 2000 });
-                                  }}
-                                  icon={ExternalIcon}
-                                >
-                                  Force Refresh
-                                </Button>
-                                <Button
-                                  variant="plain"
-                                  onClick={handleAutoAddBlock}
-                                  icon={ThemeIcon}
-                                >
-                                  Add Block to Theme
                                 </Button>
                               </InlineStack>
                             </BlockStack>
