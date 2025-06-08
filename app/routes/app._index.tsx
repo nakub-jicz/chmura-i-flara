@@ -1836,7 +1836,6 @@ export default function Index() {
                       loading={isLoadingPicker}
                       variant="primary"
                       disabled={isLoadingPicker}
-                      icon={ProductIcon}
                     >
                       {isLoadingPicker ? 'Opening picker...' : 'Add Product'}
                     </Button>
@@ -2530,25 +2529,14 @@ export default function Index() {
                   <Card>
                     <BlockStack gap="200">
                       <Text as="h3" variant="bodyMd" fontWeight="semibold">
-                        🚀 Auto-Installation System
+                        Auto-Installation System
                       </Text>
                       <Text as="p">
                         <strong>NEW:</strong> The app now attempts to automatically add the button block to your theme when you configure your first product.
                       </Text>
-                      <Text as="p" variant="bodyMd" tone="subdued">
-                        <strong>Auto-install status:</strong> {
-                          blockInstallationStatus === "installed" ? "✅ Success" :
-                            blockInstallationStatus === "already_installed" ? "✅ Already configured" :
-                              blockInstallationStatus === "error" ? "❌ Failed" :
-                                blockInstallationStatus === "previously_attempted" ? "⏭️ Previously attempted" :
-                                  "⏳ Pending"
-                        }
-                      </Text>
+
                       {blockInstallationStatus === "error" && (
                         <>
-                          <Text as="p">
-                            <strong>Manual setup required:</strong> Auto-installation failed, so you'll need to add the block manually.
-                          </Text>
                           <List type="bullet">
                             <List.Item>Go to Online Store → Themes → Customize</List.Item>
                             <List.Item>Navigate to any product page</List.Item>
@@ -2559,6 +2547,16 @@ export default function Index() {
                           </List>
                         </>
                       )}
+
+                      <InlineStack gap="200">
+                        <Button
+                          variant="primary"
+                          onClick={handleAutoAddBlock}
+                          icon={ThemeIcon}
+                        >
+                          Auto-Add Button Block
+                        </Button>
+                      </InlineStack>
 
                     </BlockStack>
                   </Card>
@@ -2602,15 +2600,17 @@ export default function Index() {
                 or contact technical support.
               </Text>
               <InlineStack gap="200">
-                <Button variant="secondary" icon={InfoIcon}>
-                  Documentation
-                </Button>
                 <Button variant="secondary" icon={ExternalIcon}>
                   Report issue
                 </Button>
               </InlineStack>
             </BlockStack>
           </Card>
+        </Layout.Section>
+
+        {/* Spacer na dole strony */}
+        <Layout.Section>
+          <Box paddingBlockEnd="800"></Box>
         </Layout.Section>
       </Layout>
 
