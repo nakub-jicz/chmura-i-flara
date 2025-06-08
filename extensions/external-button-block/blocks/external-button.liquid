@@ -1,7 +1,7 @@
 {% comment %} --- External Button Block --- {% endcomment %}
-{% comment %} Blok do wyświetlania zewnętrznych przycisków afiliacyjnych {% endcomment %}
+{% comment %} Block for displaying external affiliate buttons {% endcomment %}
 
-{% comment %} --- Pobieranie wartości Metafields --- {% endcomment %}
+{% comment %} --- Fetching Metafields values --- {% endcomment %}
 {% assign ns = "bl_custom_button" %}
 
 {% comment %} --- Support both old and new format --- {% endcomment %}
@@ -25,204 +25,254 @@
 {% endif %}
 
 {% if mf_external_url.value != blank and mf_button_text.value != blank %}
-  {% assign legacy_enabled = false %}
   {% if mf_is_enabled.value == true or mf_is_enabled.value == "true" %}
-    {% assign legacy_enabled = true %}
     {% assign has_legacy_format = true %}
   {% endif %}
-{% endif %}
-
-{% comment %} --- Debug informacje (tylko dla administratorów) --- {% endcomment %}
-{% if request.design_mode %}
-  <div class="external-button-debug" style="background: #f0f8ff; border: 1px solid #0066cc; padding: 10px; margin: 10px 0; font-size: 12px; border-radius: 4px;">
-    <strong>🔧 Debug informacje (widoczne tylko w edytorze):</strong><br>
-    • Produkt ID: {{ product.id }}<br>
-    • New format (external_links): {{ mf_external_links.value | default: "BRAK" }}<br>
-    • Legacy URL: {{ mf_external_url.value | default: "BRAK" }}<br>
-    • Legacy Text: {{ mf_button_text.value | default: "BRAK" }}<br>
-    • Legacy Enabled: {{ mf_is_enabled.value | default: "false" }}<br>
-    • Hide ATC: {{ mf_hide_atc.value | default: "false" }}<br>
-    • Has new format: {{ has_new_format }}<br>
-    • Has legacy format: {{ has_legacy_format }}<br>
-    • <em>Czas: {{ "now" | date: "%H:%M:%S" }}</em><br>
-    • <em>Cache-bust: {{ 'now' | date: '%s' }}</em>
-  </div>
 {% endif %}
 
 {% if has_new_format %}
   {% comment %} --- New format: Use external_links JSON directly --- {% endcomment %}
   <div class="custom-external-button-container" 
-       data-product-id="{{ product.id }}"
-       data-atc-override-selector="{{ block.settings.atc_selector_override | escape }}"
-       data-hide-atc="{{ mf_hide_atc.value }}"
-       data-external-links="{{ mf_external_links.value | default: '[]' | json | escape }}"
-       data-timestamp="{{ 'now' | date: '%s' }}"
+       data-product-id="{{ product.id | escape }}"
+       data-atc-override-selector="{{ block.settings.atc_selector_override | strip | escape }}"
+       data-hide-atc="{{ mf_hide_atc.value | default: 'false' | escape }}"
+       data-external-links="{{ mf_external_links.value | default: '[]' | escape }}"
+       data-timestamp="{{ 'now' | date: '%s' | escape }}"
+       data-block-button-preset="{{ block.settings.button_preset | default: 'primary_medium' | strip | escape }}"
+       data-block-custom-bg-color="{{ block.settings.custom_bg_color | strip | escape }}"
+       data-block-custom-text-color="{{ block.settings.custom_text_color | strip | escape }}"
+
+       data-block-show-tracking-notice="{{ block.settings.show_tracking_notice | default: false | escape }}"
+       data-block-tracking-notice-text="{{ block.settings.tracking_notice_text | default: 'This is an affiliate link - we may earn a commission' | strip | escape }}"
        {{ block.shopify_attributes }}>
     
     {% comment %} --- Buttons will be rendered by JavaScript --- {% endcomment %}
     <div id="external-buttons-{{ product.id }}" class="external-buttons-container"></div>
-    
-    {% comment %} --- Debug script for JSON data --- {% endcomment %}
-    {% if request.design_mode %}
-      <div class="external-links-debug" style="background: #e8f5e8; border: 1px solid #4caf50; padding: 10px; margin: 10px 0; font-size: 12px; border-radius: 4px;">
-        <strong>🔍 JSON Debug (tylko w edytorze):</strong><br>
-        • Raw JSON: {{ mf_external_links.value }}<br>
-        • JSON escaped: {{ mf_external_links.value | json | escape }}<br>
-        • Product ID dla JS: {{ product.id }}<br>
-        • Target div ID: external-buttons-{{ product.id }}<br>
-        • Timestamp: {{ 'now' | date: '%s' }}<br>
-      </div>
-    <script>
-        console.log('[Clearify Debug] Product {{ product.id }} JSON data:', {{ mf_external_links.value | json }});
-        console.log('[Clearify Debug] Container element:', document.querySelector('[data-product-id="{{ product.id }}"]'));
-        console.log('[Clearify Debug] Target div:', document.querySelector('#external-buttons-{{ product.id }}'));
-        console.log('[Clearify Debug] Timestamp:', '{{ 'now' | date: '%s' }}');
-        console.log('[Clearify Debug] Full container data:', {
-          productId: '{{ product.id }}',
-          jsonData: {{ mf_external_links.value | json }},
-          hideAtc: '{{ mf_hide_atc.value }}',
-          timestamp: '{{ 'now' | date: '%s' }}'
-        });
-    </script>
-  {% endif %}
   </div>
 
 {% elsif has_legacy_format %}
   {% comment %} --- Legacy format: single button --- {% endcomment %}
   <div class="custom-external-button-container" 
-       data-product-id="{{ product.id }}"
-       data-atc-override-selector="{{ block.settings.atc_selector_override | escape }}"
-       data-hide-atc="{{ mf_hide_atc.value }}"
+       data-product-id="{{ product.id | escape }}"
+       data-atc-override-selector="{{ block.settings.atc_selector_override | strip | escape }}"
+       data-hide-atc="{{ mf_hide_atc.value | default: 'false' | escape }}"
        {{ block.shopify_attributes }}>
     
     <button type="button" 
-            class="external-link-button btn {{ block.settings.button_style_class | default: 'product-form__cart-submit button button--full-width button--secondary' }}"
-            data-external-url="{{ mf_external_url.value | escape }}"
-            onclick="CustomButtonScript.handleExternalClick(this)"
-            style="
-              {% if block.settings.button_bg_color != blank %}background-color: {{ block.settings.button_bg_color }} !important;{% endif %}
-              {% if block.settings.button_text_color != blank %}color: {{ block.settings.button_text_color }} !important;{% endif %}
-              {% if block.settings.button_width != blank %}width: {{ block.settings.button_width }};{% else %}width: 100%;{% endif %}
-              {% if block.settings.button_padding != blank %}padding: {{ block.settings.button_padding }};{% else %}padding: 1.5rem 2rem;{% endif %}
-              {% if block.settings.button_margin != blank %}margin: {{ block.settings.button_margin }};{% else %}margin: 1rem 0;{% endif %}
-              {% if block.settings.button_border_radius != blank %}border-radius: {{ block.settings.button_border_radius }};{% else %}border-radius: var(--buttons-radius-outset);{% endif %}
-              font-size: 1.4rem;
-              font-weight: 500;
-              letter-spacing: 0.1rem;
-              line-height: 1.2;
-              text-transform: uppercase;
-              text-decoration: none;
-              cursor: pointer;
-              border: 0.1rem solid transparent;
-              transition: all 0.15s ease-in-out;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              min-height: 4.4rem;
-              position: relative;
-            ">
-      <span class="button-text" style="display: flex; align-items: center; justify-content: center;">
-        {{ mf_button_text.value }}
-        {% if block.settings.show_external_icon %}
-          <svg style="width: 1.8rem; height: 1.8rem; margin-left: 0.8rem; fill: currentColor;" viewBox="0 0 24 24">
-            <path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" />
-          </svg>
-        {% endif %}
+            class="external-link-button {{ block.settings.button_style_class | strip | escape }}"
+            data-external-url="{{ mf_external_url.value | strip | escape }}"
+            role="button"
+            aria-label="Open external link: {{ mf_button_text.value | strip | escape }}">
+      <span class="button-text">
+        <span>{{ mf_button_text.value | strip | escape }}</span>
       </span>
     </button>
 
-    {% comment %} --- Komunikat o śledzeniu (opcjonalny) --- {% endcomment %}
+    <script>
+      // Use event delegation instead of inline onclick
+      document.addEventListener('DOMContentLoaded', function() {
+        const legacyButton = document.querySelector('[data-external-url="{{ mf_external_url.value | strip | escape }}"]');
+        if (legacyButton && typeof CustomButtonScript !== 'undefined') {
+          legacyButton.addEventListener('click', function(event) {
+            event.preventDefault();
+            CustomButtonScript.handleExternalClick(this);
+          });
+        }
+      });
+    </script>
+
+    {% comment %} --- Tracking notice (optional) --- {% endcomment %}
     {% if block.settings.show_tracking_notice %}
       <small class="external-link-notice" style="display: block; margin-top: 5px; color: #666; font-size: 0.8em;">
-        {{ block.settings.tracking_notice_text | default: "Link afiliacyjny - może generować prowizję" }}
+        {{ block.settings.tracking_notice_text | default: "This is an affiliate link - we may earn a commission" }}
       </small>
     {% endif %}
   </div>
 
 {% elsif request.design_mode %}
-  {% comment %} --- Komunikat w edytorze motywu --- {% endcomment %}
+  {% comment %} --- Message in theme editor --- {% endcomment %}
   <div class="external-button-placeholder" style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; text-align: center;">
-    <h4 style="margin: 0 0 10px 0; color: #856404;">⚙️ Zewnętrzny przycisk nie jest skonfigurowany</h4>
+    <h4 style="margin: 0 0 10px 0; color: #856404;">⚙️ External button not configured</h4>
     
     <p style="margin: 5px 0; color: #856404;">
-              <strong>Krok 1:</strong> Przejdź do aplikacji "DC External Links" i skonfiguruj zewnętrzne linki dla tego produktu.
+      <strong>Step 1:</strong> Go to the "DC External Links" app and configure external links for this product.
     </p>
     
     <p style="margin: 10px 0 5px 0; font-size: 0.9em; color: #856404;">
-      <strong>Instrukcja:</strong><br>
-              1. Zainstaluj aplikację "DC External Links"<br>
-      2. Skonfiguruj produkt w aplikacji<br>
-      3. Włącz przynajmniej jeden link<br>
-      4. Ten komunikat zniknie po konfiguracji
+      <strong>Instructions:</strong><br>
+      1. Install the "DC External Links" app<br>
+      2. Configure product in the app<br>
+      3. Enable at least one link<br>
+      4. This message will disappear after configuration
     </p>
     
     <div style="margin-top: 10px;">
       <a href="/admin/apps" 
          style="background: #007bff; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; display: inline-block;">
-        Otwórz aplikacje
+        Open Apps
       </a>
     </div>
   </div>
-
-{% else %}
-  {% comment %} --- Fallback: Show message if no data but extension is active --- {% endcomment %}
-  {% if request.design_mode %}
-    <div class="external-button-not-configured" style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; text-align: center; margin: 10px 0;">
-      <h4 style="margin: 0 0 10px 0; color: #856404;">🔧 Extension is active but no data found</h4>
-      
-      <p style="margin: 5px 0; color: #856404; font-size: 14px;">
-        The External Button block is working, but no external links are configured for this product ({{ product.title }}).
-      </p>
-      
-      <p style="margin: 10px 0 5px 0; font-size: 12px; color: #856404;">
-        <strong>To configure:</strong><br>
-        1. Go to your DC External Links app<br>
-        2. Add this product and configure external links<br>
-        3. Enable at least one link<br>
-        4. This message will be replaced with actual buttons
-      </p>
-      
-      <div style="margin-top: 10px;">
-        <a href="/admin/apps" 
-           style="background: #007bff; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; display: inline-block; font-size: 12px;">
-          Open DC External Links App
-        </a>
-      </div>
-      
-      <p style="margin: 10px 0 0 0; font-size: 10px; color: #999;">
-        Product ID: {{ product.id }} | Time: {{ "now" | date: "%H:%M:%S" }}
-      </p>
-    </div>
-  {% else %}
-    {% comment %} --- Ukryty komentarz dla debugowania --- {% endcomment %}
-    <!-- External button extension active but no data: product {{ product.id }} at {{ "now" | date: "%H:%M:%S" }} -->
-  {% endif %}
 {% endif %}
 
-{% comment %} --- Ładowanie skryptu --- {% endcomment %}
+{% comment %} --- Loading script --- {% endcomment %}
 <script src="{{ 'custom_button.js' | asset_url }}" defer></script>
 
-{% comment %} --- Style CSS --- {% endcomment %}
+{% comment %} --- CSS Styles --- {% endcomment %}
 <style>
-  .external-link-button {
-    /* Ensure consistent styling with Shopify buttons */
-    box-sizing: border-box;
-    background: rgb(var(--color-button));
-    color: rgb(var(--color-button-text));
-    border: 0.1rem solid rgb(var(--color-button));
+  /* Base button styles - use more specific selectors to avoid conflicts */
+  .custom-external-button-container .external-link-button {
+    box-sizing: border-box !important;
+    cursor: pointer !important;
+    text-decoration: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    position: relative !important;
+    transition: all 0.3s ease-in-out !important;
+    width: 100% !important;
+    line-height: 1.2 !important;
+    text-transform: uppercase !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.1rem !important;
+    border-radius: 4px !important;
+    border: 1px solid !important;
+    margin: 0 !important;
+    outline: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+  }
+
+  /* Focus styles for accessibility */
+  .custom-external-button-container .external-link-button:focus {
+    outline: 2px solid #005fcc !important;
+    outline-offset: 2px !important;
+  }
+
+  .custom-external-button-container .external-link-button:focus:not(:focus-visible) {
+    outline: none !important;
   }
   
-  .external-link-button:not([disabled]):hover {
-    background: rgb(var(--color-button-hover, var(--color-button)));
-    color: rgb(var(--color-button-text-hover, var(--color-button-text)));
-    border-color: rgb(var(--color-button-hover, var(--color-button)));
-    transform: translateY(-0.1rem);
-    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
-  }
+  /* Preset styles */
+  {% assign preset = block.settings.button_preset | default: 'primary_medium' %}
+  {% assign preset_parts = preset | split: '_' %}
+  {% assign preset_style = preset_parts.first %}
+  {% assign preset_size = preset_parts.last %}
+  
+  /* Size variants */
+  {% case preset_size %}
+    {% when 'small' %}
+      .custom-external-button-container .external-link-button {
+        padding: 0.8rem 1.6rem !important;
+        font-size: 1.2rem !important;
+        min-height: 3.6rem !important;
+      }
+    {% when 'large' %}
+      .custom-external-button-container .external-link-button {
+        padding: 2rem 3rem !important;
+        font-size: 1.6rem !important;
+        min-height: 5.2rem !important;
+      }
+    {% else %}
+      .custom-external-button-container .external-link-button {
+        padding: 1.5rem 2rem !important;
+        font-size: 1.4rem !important;
+        min-height: 4.4rem !important;
+      }
+  {% endcase %}
+  
+  /* Style variants */
+  {% case preset_style %}
+    {% when 'primary' %}
+      .custom-external-button-container .external-link-button {
+        background: rgb(var(--color-button)) !important;
+        color: rgb(var(--color-button-text)) !important;
+        border-color: rgb(var(--color-button)) !important;
+      }
+      .custom-external-button-container .external-link-button:hover {
+        background: rgb(var(--color-button-hover, var(--color-button))) !important;
+        color: rgb(var(--color-button-text-hover, var(--color-button-text))) !important;
+        border-color: rgb(var(--color-button-hover, var(--color-button))) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+      }
+    {% when 'secondary' %}
+      .custom-external-button-container .external-link-button {
+        background: transparent !important;
+        color: rgb(var(--color-foreground)) !important;
+        border-color: rgb(var(--color-foreground)) !important;
+      }
+      .custom-external-button-container .external-link-button:hover {
+        background: rgb(var(--color-foreground)) !important;
+        color: rgb(var(--color-background)) !important;
+        border-color: rgb(var(--color-foreground)) !important;
+        transform: translateY(-2px) !important;
+      }
+    {% when 'outline' %}
+      .custom-external-button-container .external-link-button {
+        background: transparent !important;
+        color: rgb(var(--color-button)) !important;
+        border-color: rgb(var(--color-button)) !important;
+      }
+      .custom-external-button-container .external-link-button:hover {
+        background: rgb(var(--color-button)) !important;
+        color: rgb(var(--color-button-text));
+        border-color: rgb(var(--color-button));
+        transform: translateY(-2px);
+      }
+    {% when 'ghost' %}
+      .external-link-button {
+        background: transparent;
+        color: rgb(var(--color-foreground));
+        border-color: transparent;
+      }
+      .external-link-button:hover {
+        background: rgba(var(--color-foreground), 0.1);
+        color: rgb(var(--color-foreground));
+        transform: scale(1.02);
+      }
+    {% when 'custom' %}
+      .external-link-button {
+        {% if block.settings.custom_bg_color != blank %}
+          background: {{ block.settings.custom_bg_color }};
+        {% else %}
+          background: rgb(var(--color-button));
+        {% endif %}
+        {% if block.settings.custom_text_color != blank %}
+          color: {{ block.settings.custom_text_color }};
+        {% else %}
+          color: rgb(var(--color-button-text));
+        {% endif %}
+        {% if block.settings.custom_bg_color != blank %}
+          border-color: {{ block.settings.custom_bg_color }};
+        {% else %}
+          border-color: rgb(var(--color-button));
+        {% endif %}
+      }
+      .external-link-button:hover {
+        filter: brightness(1.1);
+        transform: translateY(-2px);
+      }
+    {% else %}
+      .external-link-button {
+        background: rgb(var(--color-button));
+        color: rgb(var(--color-button-text));
+        border-color: rgb(var(--color-button));
+      }
+      .external-link-button:hover {
+        background: rgb(var(--color-button-hover, var(--color-button)));
+        color: rgb(var(--color-button-text-hover, var(--color-button-text)));
+        border-color: rgb(var(--color-button-hover, var(--color-button)));
+        transform: translateY(-2px);
+      }
+  {% endcase %}
   
   .external-link-button:active {
     transform: translateY(0);
-    box-shadow: none;
+    {% if block.settings.enable_shadow %}
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    {% endif %}
   }
   
   .external-link-button:focus {
@@ -232,22 +282,125 @@
                 0 0 0.5rem 0.4rem rgb(var(--color-outline-button));
   }
   
-  /* Alternative styling if theme doesn't have CSS variables */
-  .external-link-button.button--secondary {
-    background: transparent;
-    color: rgb(var(--color-foreground));
-    border: 0.1rem solid rgb(var(--color-foreground));
+  /* Button text container */
+  .custom-external-button-container .external-link-button .button-text {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    text-align: center !important;
+    gap: 8px !important;
+    position: relative !important;
   }
   
-  .external-link-button.button--secondary:not([disabled]):hover {
-    background: rgb(var(--color-foreground));
-    color: rgb(var(--color-background));
+  /* Center text inside buttons */
+  .custom-external-button-container .external-link-button {
+    text-align: center !important;
   }
   
-  .external-button-debug {
-    font-family: monospace;
-    font-size: 1.2rem;
-    line-height: 1.4;
+  /* Text span should be centered */
+  .custom-external-button-container .external-link-button .button-text > span {
+    text-align: center !important;
+  }
+    gap: 0.8rem !important;
+  }
+  
+  .custom-external-button-container .external-link-button .button-text > span {
+    flex: none !important;
+  }
+
+  /* Custom style support */
+  {% if block.settings.button_preset == 'custom' %}
+    .custom-external-button-container .external-link-button {
+      {% if block.settings.custom_bg_color != blank %}
+        background: {{ block.settings.custom_bg_color | escape }} !important;
+        border-color: {{ block.settings.custom_bg_color | escape }} !important;
+      {% endif %}
+      {% if block.settings.custom_text_color != blank %}
+        color: {{ block.settings.custom_text_color | escape }} !important;
+      {% endif %}
+    }
+    .custom-external-button-container .external-link-button:hover {
+      {% if block.settings.custom_bg_color != blank %}
+        background: {{ block.settings.custom_bg_color | color_darken: 10 | escape }} !important;
+        border-color: {{ block.settings.custom_bg_color | color_darken: 10 | escape }} !important;
+      {% endif %}
+      transform: translateY(-2px) !important;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+    }
+  {% endif %}
+  
+  /* Responsive adjustments */
+  @media screen and (max-width: 749px) {
+    {% case preset_size %}
+      {% when 'small' %}
+        .external-link-button {
+          padding: 0.6rem 1.2rem;
+          font-size: 1.1rem;
+          min-height: 3.2rem;
+        }
+      {% when 'large' %}
+        .external-link-button {
+          padding: 1.6rem 2.4rem;
+          font-size: 1.4rem;
+          min-height: 4.8rem;
+        }
+      {% else %}
+        .external-link-button {
+          padding: 1.2rem 1.6rem;
+          font-size: 1.3rem;
+          min-height: 4rem;
+        }
+    {% endcase %}
+    
+
+  }
+  
+  /* Container spacing */
+  .custom-external-button-container {
+    margin: 1rem 0;
+  }
+  
+  .external-buttons-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  /* Notice styling */
+  .custom-external-button-container .external-link-notice {
+    opacity: 0.8 !important;
+    font-style: italic !important;
+    margin-top: 5px !important;
+    color: #666 !important;
+    font-size: 0.8em !important;
+    text-align: center !important;
+    display: block !important;
+  }
+  
+    /* Loading state */
+  .custom-external-button-container .external-link-button.loading {
+    opacity: 0.7 !important;
+    pointer-events: none !important;
+  }
+
+  .custom-external-button-container .external-link-button.loading::after {
+    content: '' !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    width: 20px !important;
+    height: 20px !important;
+    margin: -10px 0 0 -10px !important;
+    border: 2px solid transparent !important;
+    border-top: 2px solid currentColor !important;
+    border-radius: 50% !important;
+    animation: spin 1s linear infinite !important;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
   
   .external-button-placeholder {
@@ -279,7 +432,7 @@
     box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
   }
   
-  /* Responsywność */
+  /* Responsiveness */
   @media screen and (max-width: 749px) {
     .external-link-button {
       font-size: 1.3rem;
@@ -287,11 +440,7 @@
       min-height: 4rem;
     }
     
-    .external-link-button svg {
-      width: 1.6rem !important;
-      height: 1.6rem !important;
-      margin-left: 0.6rem !important;
-    }
+
   }
   
   @media screen and (max-width: 550px) {
@@ -324,87 +473,70 @@
   "settings": [
     {
       "type": "header",
-      "content": "Wygląd przycisku"
+      "content": "Button Appearance"
     },
     {
-      "type": "text",
-      "id": "button_style_class",
-      "label": "Klasa CSS przycisku",
-      "default": "product-form__cart-submit button button--full-width button--secondary",
-      "info": "Ustaw klasę CSS zgodną z Twoim motywem (np. button button--primary, product-form__cart-submit)"
+      "type": "select",
+      "id": "button_preset",
+      "label": "Button Preset",
+      "default": "primary_medium",
+      "options": [
+        { "value": "primary_small", "label": "Primary - Small" },
+        { "value": "primary_medium", "label": "Primary - Medium" },
+        { "value": "primary_large", "label": "Primary - Large" },
+        { "value": "secondary_small", "label": "Secondary - Small" },
+        { "value": "secondary_medium", "label": "Secondary - Medium" },
+        { "value": "secondary_large", "label": "Secondary - Large" },
+        { "value": "outline_small", "label": "Outline - Small" },
+        { "value": "outline_medium", "label": "Outline - Medium" },
+        { "value": "outline_large", "label": "Outline - Large" },
+        { "value": "ghost_small", "label": "Ghost - Small" },
+        { "value": "ghost_medium", "label": "Ghost - Medium" },
+        { "value": "ghost_large", "label": "Ghost - Large" },
+        { "value": "custom", "label": "Custom Style" }
+      ],
+      "info": "Choose a preset style or select 'Custom' for full control"
     },
     {
       "type": "color",
-      "id": "button_bg_color",
-      "label": "Kolor tła",
-      "info": "Opcjonalne: nadpisuje styl motywu"
+      "id": "custom_bg_color",
+      "label": "Custom Background Color",
+      "info": "Only used with 'Custom Style' preset"
     },
     {
       "type": "color",
-      "id": "button_text_color",
-      "label": "Kolor tekstu",
-      "info": "Opcjonalne: nadpisuje kolor tekstu motywu"
+      "id": "custom_text_color",
+      "label": "Custom Text Color",
+      "info": "Only used with 'Custom Style' preset"
     },
-    {
-      "type": "text",
-      "id": "button_width",
-      "label": "Szerokość przycisku",
-      "default": "100%",
-      "info": "CSS width (np. 100%, 200px, auto). Ustaw 100% dla pełnej szerokości."
-    },
-    {
-      "type": "text",
-      "id": "button_padding",
-      "label": "Padding",
-      "default": "1.5rem 2rem",
-      "info": "CSS padding (np. 1.5rem 2rem, 15px 20px)"
-    },
-    {
-      "type": "text",
-      "id": "button_margin",
-      "label": "Margines",
-      "default": "1rem 0",
-      "info": "CSS margin (np. 1rem 0, 10px 0)"
-    },
-    {
-      "type": "text",
-      "id": "button_border_radius",
-      "label": "Zaokrąglenie rogów",
-      "default": "var(--buttons-radius-outset)",
-      "info": "CSS border-radius (np. 0.4rem, var(--buttons-radius-outset))"
-    },
+
     {
       "type": "header",
-      "content": "Dodatkowe opcje"
-    },
-    {
-      "type": "checkbox",
-      "id": "show_external_icon",
-      "label": "Pokaż ikonę zewnętrznego linku",
-      "default": true
+      "content": "Affiliate Link Notice"
     },
     {
       "type": "checkbox",
       "id": "show_tracking_notice",
-      "label": "Pokaż informację o linku afiliacyjnym",
-      "default": false
+      "label": "Show affiliate link notice",
+      "default": false,
+      "info": "Displays notice text below buttons to comply with affiliate disclosure requirements"
     },
     {
-      "type": "text",
+      "type": "textarea",
       "id": "tracking_notice_text",
-      "label": "Tekst informacji",
-      "default": "Link afiliacyjny - może generować prowizję",
-      "info": "Wyświetlany pod przyciskiem jeśli włączone powyżej"
+      "label": "Notice Text",
+      "default": "This is an affiliate link - we may earn a commission",
+      "info": "Displayed below button if notice is enabled. Keep it short and clear."
     },
     {
       "type": "header",
-      "content": "Zaawansowane"
+      "content": "Advanced Settings"
     },
     {
       "type": "text",
       "id": "atc_selector_override",
-      "label": "Niestandardowy selektor ATC",
-      "info": "Zaawansowane: alternatywny selektor do ukrywania przycisków dodawania do koszyka"
+      "label": "Custom Add-to-Cart Selector",
+      "info": "Override default selectors for hiding Add-to-Cart buttons. Leave empty to use defaults. Example: .my-custom-atc-button"
     }
   ]
 }

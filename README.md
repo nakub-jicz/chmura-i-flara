@@ -98,6 +98,45 @@ This template comes preconfigured with examples of:
 
 Please read the [documentation for @shopify/shopify-app-remix](https://www.npmjs.com/package/@shopify/shopify-app-remix#authenticating-admin-requests) to understand what other API's are available.
 
+## DC External Links - Button Customization
+
+This app includes streamlined button customization options available in the theme editor:
+
+### Button Presets
+Choose from pre-designed button styles that combine size and appearance:
+- **Primary - Small**: Compact primary button
+- **Primary - Medium**: Standard primary button (default)
+- **Primary - Large**: Large primary button
+- **Secondary - Small**: Compact secondary button
+- **Secondary - Medium**: Standard secondary button
+- **Secondary - Large**: Large secondary button
+- **Outline - Medium**: Medium outlined button
+- **Ghost - Medium**: Medium button with minimal styling
+- **Custom Style**: Full control with custom colors
+
+### Custom Colors (when using Custom Style)
+- **Custom Background Color**: Set your own background color
+- **Custom Text Color**: Set your own text color
+
+### Icon Settings
+- **Show External Icon**: Toggle external link icon display
+- Icon automatically appears on the right side of button text
+
+### Additional Options
+- **Show Affiliate Notice**: Display affiliate link notice below button
+- **Notice Text**: Customizable notice text (default: "This is an affiliate link - we may earn a commission")
+
+### Built-in Features
+- **Responsive Design**: All buttons automatically adjust for mobile devices
+- **Hover Effects**: Smooth hover animations including lift and color transitions
+- **Theme Integration**: Buttons automatically inherit your theme's color scheme
+- **Accessibility**: Proper focus states and screen reader support
+
+### Technical Notes
+- Button width is always full width for consistency
+- Typography automatically matches your theme's button styling
+- All animations use hardware acceleration for smooth performance
+
 ## Deployment
 
 ### Application Storage

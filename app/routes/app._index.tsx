@@ -349,15 +349,56 @@ async function autoInstallAppBlock(admin: any, shop: string): Promise<{ success:
       };
 
       // Add to block order (preferably after add to cart button)
-      const addToCartIndex = section.block_order.findIndex((id: string) =>
-        section.blocks[id]?.type?.includes('buy_buttons') ||
-        section.blocks[id]?.type?.includes('product_form')
-      );
+      // Look for various common add to cart block types
+      const addToCartIndex = section.block_order.findIndex((id: string) => {
+        const blockType = section.blocks[id]?.type?.toLowerCase() || '';
+        return (
+          blockType.includes('buy_buttons') ||
+          blockType.includes('product_form') ||
+          blockType.includes('add_to_cart') ||
+          blockType.includes('cart_button') ||
+          blockType.includes('purchase') ||
+          blockType.includes('checkout') ||
+          blockType === 'buy_buttons' ||
+          blockType === 'product-form' ||
+          // Shopify's common block types
+          blockType === 'shopify://apps/product-form' ||
+          blockType.includes('@app') ||
+          // Dawn theme specific
+          blockType === 'buy_buttons@product-form' ||
+          // Other common patterns
+          id.includes('buy') ||
+          id.includes('cart') ||
+          id.includes('purchase')
+        );
+      });
 
       if (addToCartIndex >= 0) {
+        // Insert right after the add to cart button
         section.block_order.splice(addToCartIndex + 1, 0, blockId);
+        console.log(`Added external button block after add-to-cart at position ${addToCartIndex + 1}`);
       } else {
-        section.block_order.push(blockId);
+        // Fallback: look for quantity selector or other form elements
+        const formElementIndex = section.block_order.findIndex((id: string) => {
+          const blockType = section.blocks[id]?.type?.toLowerCase() || '';
+          return (
+            blockType.includes('quantity') ||
+            blockType.includes('variant') ||
+            blockType.includes('picker') ||
+            id.includes('quantity') ||
+            id.includes('variant')
+          );
+        });
+
+        if (formElementIndex >= 0) {
+          // Insert after the last form element found
+          section.block_order.splice(formElementIndex + 1, 0, blockId);
+          console.log(`Added external button block after form element at position ${formElementIndex + 1}`);
+        } else {
+          // Last resort: add at the beginning of the form
+          section.block_order.unshift(blockId);
+          console.log(`Added external button block at the beginning of product form`);
+        }
       }
 
     } else {
@@ -979,7 +1020,7 @@ export default function Index() {
 
   // Generate auto-add URL for theme editor
   const getAutoAddUrl = () =>
-    `https://${shopDomain}/admin/themes/current/editor?template=product&addAppBlockId=${APP_CLIENT_ID}/${EXTENSION_NAME}&target=mainSection`;
+    `https://${shopDomain}/admin/themes/current/editor?template=product&addAppBlockId=${APP_CLIENT_ID}/${EXTENSION_NAME}&target=section:product-form`;
 
   // Function to handle auto-add button click
   const handleAutoAddBlock = () => {
@@ -1100,7 +1141,7 @@ export default function Index() {
 
       // Show loading toast
       if (window.shopify?.toast) {
-        window.shopify.toast.show("Opening product picker...", { duration: 2000 });
+        window.shopify.toast.show("Opening product picker (you can select multiple)...", { duration: 2000 });
       }
 
       console.log('Attempting to open resource picker with shopify instance:', shopify);
@@ -1117,7 +1158,7 @@ export default function Index() {
         console.log('Using App Bridge resourcePicker API');
         selection = await shopify.resourcePicker({
           type: "product",
-          multiple: false,
+          multiple: true,
         });
       } else {
         // Fallback: redirect to product selection page if picker not available
@@ -1134,40 +1175,56 @@ export default function Index() {
       console.log('Resource picker returned:', selection);
 
       if (selection && selection.length > 0) {
-        const selected = selection[0];
+        // Separate products into new and already configured
+        const newProducts = selection.filter((selected: any) => {
+          const selectedProduct = selected as any;
+          return !configuredProducts.find(p => p.id === selectedProduct.id);
+        });
 
-        // Show success toast
+        const alreadyConfigured = selection.filter((selected: any) => {
+          const selectedProduct = selected as any;
+          return configuredProducts.find(p => p.id === selectedProduct.id);
+        });
+
+        // Log skipped products
+        alreadyConfigured.forEach((product: any) => {
+          console.log(`Product ${product.title} is already configured, skipping...`);
+        });
+
+        // Show initial selection toast
         if (window.shopify?.toast) {
-          window.shopify.toast.show(`Selected: ${selected.title}`, { duration: 3000 });
+          if (newProducts.length > 0) {
+            window.shopify.toast.show(`Adding ${newProducts.length} new product${newProducts.length > 1 ? 's' : ''}: ${newProducts.map(p => p.title).join(', ')}`, { duration: 4000 });
+          } else {
+            window.shopify.toast.show(`All selected products are already configured`, { duration: 3000 });
+          }
         }
 
-        // Create new product entry and add it to the list
-        // Handle different types of selected resources
-        const selectedProduct = selected as any; // Type assertion for compatibility
-        const newProduct: Product = {
-          id: selectedProduct.id,
-          title: selectedProduct.title,
-          handle: selectedProduct.handle || selectedProduct.id.split('/').pop() || '',
-          featuredImage: selectedProduct.featuredImage || selectedProduct.image,
-          externalUrl: "",
-          buttonText: "",
-          isEnabled: false,
-          hideAtc: false,
-          hasMetafields: false,
-          hasMultipleLinks: false,
-          externalLinks: []
-        };
+        // Process only new products
+        for (const selectedProduct of newProducts) {
+          // Save the product to add it to the configured products list
+          const formData = new FormData();
+          formData.set("actionType", "save");
+          formData.set("productId", selectedProduct.id);
+          formData.set("linkCount", "0"); // No links initially
 
-        // Save the product to add it to the configured products list
-        const formData = new FormData();
-        formData.set("actionType", "save");
-        formData.set("productId", selectedProduct.id);
-        formData.set("linkCount", "0"); // No links initially
+          submit(formData, { method: "post" });
 
-        submit(formData, { method: "post" });
+          // Add small delay between submissions to avoid race conditions
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        // Show info about skipped products
+        if (alreadyConfigured.length > 0) {
+          setTimeout(() => {
+            if (window.shopify?.toast) {
+              window.shopify.toast.show(`Skipped ${alreadyConfigured.length} already configured product${alreadyConfigured.length > 1 ? 's' : ''}: ${alreadyConfigured.map(p => p.title).join(', ')}`, { duration: 4000 });
+            }
+          }, 1000);
+        }
       } else {
         if (window.shopify?.toast) {
-          window.shopify.toast.show("No product selected", { duration: 2000 });
+          window.shopify.toast.show("No products selected", { duration: 2000 });
         }
       }
     } catch (error) {
@@ -1641,7 +1698,7 @@ export default function Index() {
     <Page
       title="DC External Links"
       primaryAction={{
-        content: isLoadingPicker ? "Selecting..." : "Add Product",
+        content: isLoadingPicker ? "Selecting..." : "Add Products",
         onAction: handleOpenProductPicker,
         loading: isLoadingPicker,
         disabled: isLoadingPicker,
@@ -1716,7 +1773,7 @@ export default function Index() {
                       disabled={isLoadingPicker}
                       icon={isLoadingPicker ? SearchIcon : PlusIcon}
                     >
-                      {isLoadingPicker ? 'Opening picker...' : 'Add Product'}
+                      {isLoadingPicker ? 'Opening picker...' : 'Add Products'}
                     </Button>
 
                   </InlineStack>
@@ -2220,7 +2277,7 @@ export default function Index() {
                       disabled={isLoadingPicker}
                       icon={ProductIcon}
                     >
-                      {isLoadingPicker ? "Selecting..." : "Configure first product"}
+                      {isLoadingPicker ? "Selecting..." : "Configure first products"}
                     </Button>
                   </InlineStack>
                 </BlockStack>
