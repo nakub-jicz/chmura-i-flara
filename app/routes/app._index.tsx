@@ -249,7 +249,6 @@ async function checkAutoInstallStatus(admin: any, shop: string): Promise<boolean
 
 async function autoInstallAppBlock(admin: any, shop: string): Promise<{ success: boolean; status: string; message?: string }> {
   try {
-    console.log('Starting auto-installation process...');
 
     // 1. Get active theme
     const themeQuery = `
@@ -274,7 +273,6 @@ async function autoInstallAppBlock(admin: any, shop: string): Promise<{ success:
     const activeTheme = themeData.data.themes.nodes[0];
     const themeId = activeTheme.id.replace('gid://shopify/Theme/', '');
 
-    console.log('Found active theme:', activeTheme);
 
     // 2. Get theme files to find product template
     const filesQuery = `
@@ -319,14 +317,12 @@ async function autoInstallAppBlock(admin: any, shop: string): Promise<{ success:
       return { success: false, status: "invalid_template_json", message: "Could not parse template JSON" };
     }
 
-    console.log('Found product template:', productTemplate.filename);
 
     // 4. Check if our block is already added
     const appBlockId = `b47fbbd7a2798bdefa342301971e612b/external-button-block`;
     const hasOurBlock = JSON.stringify(templateContent).includes(appBlockId);
 
     if (hasOurBlock) {
-      console.log('App block already exists in template');
       await markAutoInstallComplete(admin);
       return { success: true, status: "already_installed", message: "Block already exists in template" };
     }
@@ -364,7 +360,6 @@ async function autoInstallAppBlock(admin: any, shop: string): Promise<{ success:
         section.block_order.push(blockId);
       }
 
-      console.log('Added block to section:', productFormSection);
     } else {
       return { success: false, status: "no_suitable_section", message: "Could not find suitable section to add block" };
     }
@@ -408,7 +403,6 @@ async function autoInstallAppBlock(admin: any, shop: string): Promise<{ success:
     // 7. Mark installation as complete
     await markAutoInstallComplete(admin);
 
-    console.log('Successfully auto-installed app block');
     return { success: true, status: "installed", message: "App block successfully added to theme" };
 
   } catch (error) {
@@ -448,54 +442,34 @@ async function markAutoInstallComplete(admin: any): Promise<void> {
       }
     });
 
-    console.log('Marked auto-install as complete');
   } catch (error) {
     console.error('Error marking auto-install complete:', error);
   }
 }
 
 export const action = async ({ request, context }: ActionFunctionArgs) => {
-  console.log('=== ACTION CALLED ===');
-  console.log('Request method:', request.method);
-  console.log('Request URL:', request.url);
-  console.log('=== ACTION START ===');
+  // Debug logs removed for production
 
   const { admin, session } = await shopify(context).authenticate.admin(request);
-  console.log('Admin instance available:', !!admin);
-  console.log('Session shop:', session.shop);
-  console.log('Session scopes:', session.scope);
+  // Session validation logs removed for production
 
   try {
     const formData = await request.formData();
     const actionType = formData.get("actionType");
     const productId = formData.get("productId");
 
-    console.log('Action called with:', { actionType, productId });
-    console.log('Full form data:');
-    console.log('Raw form entries:', Object.fromEntries(formData.entries()));
-
-    // Log each form field individually for debugging
-    for (const [key, value] of formData.entries()) {
-      console.log(`  ${key}: "${value}" (type: ${typeof value})`);
-    }
 
 
 
     if (actionType === "save" && productId) {
-      // Save product configuration
-      console.log('=== SAVE ACTION START ===');
-      console.log('ProductId:', productId);
-      console.log('All form data entries:', Object.fromEntries(formData.entries()));
 
       // Parse hide ATC data from checkbox 
       const hideAtcValue = formData.get("hideAtc");
       const hideAtc = hideAtcValue === "on";
-      console.log('Hide ATC checkbox:', { hideAtcValue, hideAtc });
 
       // Parse external links from form fields
       const linkCountString = formData.get("linkCount");
       const linkCount = parseInt(linkCountString as string || "0", 10);
-      console.log('Link count parsing:', { linkCountString, linkCount, isNaN: isNaN(linkCount) });
 
       const externalLinks: ExternalLink[] = [];
 
@@ -506,17 +480,6 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         const enabledValue = formData.get(`link_${i}_enabled`);
         const enabled = enabledValue === "on";
 
-        console.log(`=== LINK ${i} FORM DATA PARSING ===`);
-        console.log(`URL raw:`, formData.get(`link_${i}_url`));
-        console.log(`Text raw:`, formData.get(`link_${i}_text`));
-        console.log(`Enabled raw:`, formData.get(`link_${i}_enabled`));
-        console.log(`Enabled raw type:`, typeof formData.get(`link_${i}_enabled`));
-        console.log(`Enabled raw === "on":`, formData.get(`link_${i}_enabled`) === "on");
-        console.log(`URL parsed:`, url);
-        console.log(`Text parsed:`, text);
-        console.log(`Enabled parsed:`, enabled);
-        console.log(`Enabled parsed type:`, typeof enabled);
-        console.log(`=== END LINK ${i} PARSING ===`);
 
         externalLinks.push({
           url: url,
@@ -525,20 +488,6 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         });
       }
 
-      console.log('Parsed data:', {
-        externalLinks: JSON.stringify(externalLinks, null, 2),
-        hideAtc,
-        externalLinksCount: externalLinks.length
-      });
-      console.log('=== SAVE ACTION PARSING COMPLETE ===');
-      console.log('Final parsed externalLinks array:', externalLinks.map((link, idx) => ({
-        index: idx,
-        url: link.url,
-        text: link.text,
-        enabled: link.enabled,
-        enabled_type: typeof link.enabled,
-        enabled_toString: String(link.enabled)
-      })));
       const METAFIELD_NAMESPACE = "bl_custom_button";
 
       // Get existing metafields to know which ones to update vs create
@@ -565,7 +514,6 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         product: { metafields: { nodes: Array<{ id: string; key: string; value: string; type: string }> } };
       }>;
 
-      console.log('Existing metafields:', existingData.data?.product?.metafields?.nodes);
 
       const existingMetafields = existingData.data?.product?.metafields?.nodes || [];
       const existingMetafieldMap = new Map(existingMetafields.map(mf => [mf.key, mf]));
@@ -579,7 +527,6 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
       const metafieldsToDelete = existingMetafields.filter(mf => !keysToKeep.has(mf.key));
 
       if (metafieldsToDelete.length > 0) {
-        console.log('Deleting unused metafields:', metafieldsToDelete.map(mf => mf.key));
         const deleteMutation = `
           mutation metafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
             metafieldsDelete(metafields: $metafields) {
@@ -608,19 +555,9 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
       // Prepare metafields for save (update existing or create new)
       const metafieldsToSave: Array<{ id?: string; key: string; value: string; type: string }> = [];
 
-      console.log('Preparing metafields with data:', { externalLinks, hideAtc });
 
       // Always save external links data (even if empty or all disabled)
       const jsonValue = JSON.stringify(externalLinks);
-      console.log('Preparing external_links metafield with value:', jsonValue);
-      console.log('JSON value parsed back for verification:', JSON.parse(jsonValue));
-      console.log('External links before JSON stringification:', externalLinks.map((link, index) => ({
-        index,
-        url: link.url,
-        text: link.text,
-        enabled: link.enabled,
-        enabled_type: typeof link.enabled
-      })));
 
       const existingExternalLinks = existingMetafieldMap.get("external_links");
       metafieldsToSave.push({
@@ -631,7 +568,6 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
       });
 
       if (hideAtc) {
-        console.log('Adding hide_atc metafield');
         const existingHideAtc = existingMetafieldMap.get("hide_atc");
         metafieldsToSave.push({
           ...(existingHideAtc ? { id: existingHideAtc.id } : {}),
@@ -640,10 +576,8 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
           type: "single_line_text_field"
         });
       } else {
-        console.log('hideAtc is false, not adding metafield');
       }
 
-      console.log('Final metafields to save:', metafieldsToSave);
 
       if (metafieldsToSave.length > 0) {
         const saveMutation = `
@@ -683,53 +617,23 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
           }
         };
 
-        console.log('GraphQL mutation variables:', JSON.stringify(mutationVariables, null, 2));
-
-        console.log('=== SENDING GRAPHQL MUTATION ===');
-        console.log('Mutation:', saveMutation);
-        console.log('Variables:', JSON.stringify(mutationVariables, null, 2));
-
         const saveResponse = await admin.graphql(saveMutation, {
           variables: mutationVariables
         });
 
-        console.log('Response status:', saveResponse.status);
-        console.log('Response ok:', saveResponse.ok);
 
         const saveData = await saveResponse.json() as GraphQLResponse<ProductUpdateResponse>;
-        console.log('GraphQL save response:', JSON.stringify(saveData, null, 2));
 
         if (saveData.errors || (saveData.data?.productUpdate?.userErrors?.length ?? 0) > 0) {
           const errors = saveData.errors || saveData.data?.productUpdate?.userErrors || [];
-          console.log('GraphQL save errors:', errors);
-          console.log('Detailed error analysis:', {
-            hasGraphQLErrors: !!saveData.errors,
-            graphQLErrorsCount: saveData.errors?.length || 0,
-            hasUserErrors: !!(saveData.data?.productUpdate?.userErrors?.length),
-            userErrorsCount: saveData.data?.productUpdate?.userErrors?.length || 0,
-            allErrors: errors
-          });
           return json({
             error: "Failed to save: " + errors.map((e: any) => e.message).join(", "),
             success: false
           });
         }
       } else {
-        console.log('No metafields to create, but save operation still considered successful');
       }
 
-      console.log('=== SAVE SUCCESS ===');
-      console.log('Final saved data summary:', {
-        productId,
-        externalLinksCount: externalLinks.length,
-        externalLinksPreview: externalLinks.map(link => ({
-          text: link.text,
-          url: link.url?.substring(0, 30) + '...',
-          enabled: link.enabled
-        })),
-        hideAtc,
-        metafieldsCreated: metafieldsToSave.length
-      });
 
       return json({
         success: true,
@@ -754,7 +658,6 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         }
       `;
 
-      console.log('Querying metafields for product:', productId);
       const metafieldsResponse = await admin.graphql(getMetafieldsQuery, {
         variables: { id: productId }
       });
@@ -768,10 +671,8 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
         };
       }>;
 
-      console.log('Metafields response:', metafieldsData);
 
       if (metafieldsData.errors) {
-        console.error("GraphQL errors:", metafieldsData.errors);
         return json({
           error: "Failed to fetch metafields: " + metafieldsData.errors[0].message,
           success: false
@@ -829,11 +730,6 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
           });
         }
 
-        console.log(`Successfully deleted configuration for product: ${product?.title}`);
-        console.log('Returning success response:', {
-          success: true,
-          message: `Configuration for "${product?.title}" has been removed successfully.`
-        });
         return json({
           success: true,
           message: `Configuration for "${product?.title}" has been removed successfully.`
@@ -859,15 +755,11 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
 export const loader = async ({ request, context }: LoaderFunctionArgs) => {
   const { admin, session } = await shopify(context).authenticate.admin(request);
 
-  console.log('=== LOADER START ===');
-  console.log('Session shop:', session.shop);
-  console.log('Admin instance available:', !!admin);
-  console.log('Context:', Object.keys(context || {}));
+  // Loader debug logs removed for production
 
   // Pobierz dane o aktywnym motywie
   let themeEditorUrl: string | null = null;
   try {
-    console.log('=== FETCHING THEMES ===');
     const themeQuery = `
       query getThemes {
         themes(first: 10) {
@@ -881,11 +773,8 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
     `;
 
     const themeResponse = await admin.graphql(themeQuery);
-    console.log('Theme response status:', themeResponse.status);
-    console.log('Theme response headers:', Object.fromEntries(themeResponse.headers.entries()));
 
     const themeData = await themeResponse.json() as GraphQLResponse<ThemesQueryResponse>;
-    console.log('Theme data:', JSON.stringify(themeData, null, 2));
 
     if (themeData.errors) {
       console.error("Theme GraphQL errors:", themeData.errors);
@@ -895,16 +784,10 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
         // Generuj URL do edytora motywu - usuwamy "gid://shopify/Theme/" z ID
         const themeId = activeTheme.id.replace('gid://shopify/Theme/', '');
         themeEditorUrl = `https://${session.shop}/admin/themes/${themeId}/editor`;
-        console.log('Generated theme editor URL:', themeEditorUrl);
       }
     }
   } catch (error) {
-    console.error("Error fetching theme data:", error);
     // Więcej szczegółowych informacji o błędzie
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    }
     // Fallback - użyj ogólnego URL do motywów
     themeEditorUrl = `https://${session.shop}/admin/themes`;
   }
@@ -912,7 +795,6 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
   // Pobierz produkty z skonfigurowanymi zewnętrznymi linkami
   let configuredProducts: Product[] = [];
   try {
-    console.log('=== FETCHING PRODUCTS ===');
     const productsQuery = `
       query getProductsWithMetafields($namespace: String!) {
         products(first: 100) {
@@ -938,18 +820,13 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
       }
     `;
 
-    console.log("GraphQL Query:", productsQuery);
-    console.log("Variables:", { namespace: "bl_custom_button" });
 
     const productsResponse = await admin.graphql(productsQuery, {
       variables: { namespace: "bl_custom_button" }
     });
 
-    console.log('Products response status:', productsResponse.status);
-    console.log('Products response headers:', Object.fromEntries(productsResponse.headers.entries()));
 
     const productsData = await productsResponse.json() as GraphQLResponse<ProductsQueryResponse>;
-    console.log("Products response:", JSON.stringify(productsData, null, 2));
 
     if (productsData.errors) {
       console.error("Products GraphQL errors:", productsData.errors);
@@ -963,7 +840,6 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
       });
     } else if (productsData.data?.products?.nodes) {
       const allProducts = productsData.data.products.nodes;
-      console.log("Total products found:", allProducts.length);
 
       configuredProducts = allProducts.map((product) => {
         const metafields = product.metafields?.nodes || [];
@@ -973,7 +849,6 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
           metafieldMap[mf.key] = mf.value;
         });
 
-        console.log(`Product ${product.title} metafields:`, metafieldMap);
 
         // Support both old and new format
         let externalLinks: ExternalLink[] = [];
@@ -985,34 +860,17 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
         if (metafieldMap["external_links"]) {
           try {
             externalLinks = JSON.parse(metafieldMap["external_links"]);
-            console.log(`=== PARSING EXTERNAL LINKS FOR ${product.title} ===`);
-            console.log(`Raw metafield value:`, metafieldMap["external_links"]);
-            console.log(`Parsed external links:`, externalLinks);
-            console.log(`External links with types:`, externalLinks.map((link, index) => ({
-              index,
-              url: link.url,
-              text: link.text,
-              enabled: link.enabled,
-              enabled_type: typeof link.enabled,
-              enabled_strict_true: link.enabled === true,
-              enabled_strict_false: link.enabled === false
-            })));
 
             // For display purposes, use the first enabled link
             const enabledLink = externalLinks.find((link: ExternalLink) => link.enabled === true);
-            console.log(`Found enabled link:`, enabledLink);
 
             if (enabledLink) {
               buttonText = enabledLink.text || "";
               externalUrl = enabledLink.url || "";
               isEnabled = true;
-              console.log(`Using enabled link for display:`, { buttonText, externalUrl, isEnabled });
             } else {
-              console.log(`No enabled link found in:`, externalLinks);
             }
-            console.log(`=== END PARSING ===`);
           } catch (error) {
-            console.error(`Error parsing external links JSON for ${product.title}:`, error);
           }
         }
         // Fallback to old format (individual metafields)
@@ -1791,8 +1649,8 @@ export default function Index() {
       }}
     >
       <Layout>
-        {/* Theme Setup Information - Show if user hasn't dismissed */}
-        {!autoInstallNotificationDismissed && (
+        {/* Theme Setup Information - Show when setup is needed */}
+        {(configuredProducts.length > 0 || !autoInstallNotificationDismissed) && (
           <Layout.Section>
             <Banner
               title="Theme Setup Required"
@@ -1860,6 +1718,7 @@ export default function Index() {
                     >
                       {isLoadingPicker ? 'Opening picker...' : 'Add Product'}
                     </Button>
+
                   </InlineStack>
                 </InlineStack>
               </InlineStack>
@@ -2069,280 +1928,282 @@ export default function Index() {
                 <BlockStack gap="300">
                   {configuredProducts.map((product: Product) => (
                     <Card key={product.id}>
-                      <InlineStack align="space-between" blockAlign="start" gap="400">
-                        <InlineStack gap="300" blockAlign="center">
-                          {product.featuredImage && (
-                            <div style={{ flexShrink: 0 }}>
-                              <img
-                                src={product.featuredImage.url}
-                                alt={product.featuredImage.altText || ""}
-                                style={{
-                                  width: "40px",
-                                  height: "40px",
-                                  objectFit: "cover",
-                                  borderRadius: "4px"
-                                }}
-                              />
-                            </div>
-                          )}
-                          <BlockStack gap="200">
-                            <Text as="h3" variant="bodyLg" fontWeight="semibold">
-                              {product.title}
-                            </Text>
-                            <InlineStack gap="200" blockAlign="center" wrap={false}>
-                              <InlineStack gap="100" blockAlign="center">
-                                <Badge tone={product.isEnabled ? "success" : "critical"}>
-                                  {product.isEnabled ? "Enabled" : "Disabled"}
-                                </Badge>
-                                {product.hasMultipleLinks && (
-                                  <Badge tone="info">
-                                    Multiple links
-                                  </Badge>
-                                )}
-                                {product.buttonText && (
-                                  <Text as="span" variant="bodyMd" tone="subdued">
-                                    Button: "{product.buttonText}"
-                                  </Text>
-                                )}
-                              </InlineStack>
-
-                            </InlineStack>
-                            {product.externalUrl && (
-                              <InlineStack gap="100" blockAlign="center">
-                                <Icon source={ExternalIcon} />
-                                <Text
-                                  as="span"
-                                  variant="bodyMd"
-                                  tone="subdued"
-                                >
-                                  {truncateUrl(product.externalUrl, 60)}
-                                </Text>
-                              </InlineStack>
-                            )}
-                          </BlockStack>
-                        </InlineStack>
-
-                        <InlineStack gap="200">
-                          <Button
-                            variant="secondary"
-                            size="medium"
-                            onClick={() => {
-                              toggleProductExpansion(product.id, product);
-                              if (!expandedProducts[product.id]?.isExpanded) {
-                                startEditingProduct(product.id);
-                              }
-                            }}
-                            icon={expandedProducts[product.id]?.isExpanded ? ChevronUpIcon : SettingsIcon}
-                          >
-                            {expandedProducts[product.id]?.isExpanded ? "Collapse" : "Edit"}
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="medium"
-                            onClick={() => handlePreviewProduct(product.handle)}
-                            icon={ViewIcon}
-                          >
-                            Preview
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="medium"
-                            tone="critical"
-                            onClick={() => handleDeleteClick(product)}
-                            icon={DeleteIcon}
-                          >
-                            Delete
-                          </Button>
-                        </InlineStack>
-                      </InlineStack>
-
-                      {/* Expanded configuration section */}
-                      {expandedProducts[product.id]?.isExpanded && (
-                        <Form method="post">
-                          <input type="hidden" name="actionType" value="save" />
-                          <input type="hidden" name="productId" value={product.id} />
-                          <input type="hidden" name="linkCount" value={expandedProducts[product.id]?.externalLinks?.length || 0} />
-
-                          <Card background="bg-surface-secondary">
-                            <BlockStack gap="400">
-                              <InlineStack align="space-between" blockAlign="center">
-                                <Text variant="headingMd" as="h3">
-                                  Configure: {product.title}
-                                </Text>
-                                {expandedProducts[product.id]?.isSaving && (
-                                  <InlineStack gap="100" blockAlign="center">
-                                    <Spinner accessibilityLabel="Saving" size="small" />
-                                    <Badge tone="info">Saving...</Badge>
-                                  </InlineStack>
-                                )}
-                              </InlineStack>
-
-                              {/* External Links Configuration */}
-                              <Card>
-                                <BlockStack gap="400">
-                                  <InlineStack align="space-between" blockAlign="center">
-                                    <Text as="h4" variant="bodyLg" fontWeight="semibold">External Links</Text>
-                                    <Button
-                                      onClick={() => addExternalLink(product.id)}
-                                      icon={PlusIcon}
-                                      size="medium"
-                                    >
-                                      Add Link
-                                    </Button>
-                                  </InlineStack>
-
-                                  {expandedProducts[product.id]?.externalLinks?.length > 0 ? (
-                                    <BlockStack gap="300">
-                                      {expandedProducts[product.id].externalLinks.map((link, index) => (
-                                        <Card key={index} background="bg-surface">
-                                          <BlockStack gap="300">
-                                            <InlineStack align="space-between" blockAlign="center">
-                                              <Text as="h5" variant="bodyMd" fontWeight="semibold">
-                                                Link {expandedProducts[product.id].externalLinks.length - index}
-                                              </Text>
-                                              <Button
-                                                onClick={() => removeExternalLink(product.id, index)}
-                                                icon={DeleteIcon}
-                                                variant="plain"
-                                                tone="critical"
-                                                size="medium"
-                                              >
-                                                Remove
-                                              </Button>
-                                            </InlineStack>
-
-                                            <FormLayout>
-                                              <TextField
-                                                label="Button text"
-                                                name={`link_${index}_text`}
-                                                value={link.text || ""}
-                                                onChange={(value) => {
-                                                  updateExternalLink(product.id, index, "text", value);
-                                                }}
-                                                autoComplete="off"
-                                                placeholder="Buy on Amazon"
-                                                helpText="Text displayed on the button"
-                                              />
-
-                                              <TextField
-                                                label="Destination URL"
-                                                name={`link_${index}_url`}
-                                                value={link.url || ""}
-                                                onChange={(value) => {
-                                                  updateExternalLink(product.id, index, "url", value);
-                                                }}
-                                                autoComplete="off"
-                                                placeholder="https://amazon.com/product/..."
-                                                helpText="Full URL where the button should redirect"
-                                              />
-
-                                              <Checkbox
-                                                label="Enable this button"
-                                                name={`link_${index}_enabled`}
-                                                checked={link.enabled}
-                                                onChange={(checked) => {
-                                                  console.log(`=== CHECKBOX CHANGE EXISTING PRODUCT ===`);
-                                                  console.log(`Product ID: ${product.id}`);
-                                                  console.log(`Link index: ${index}`);
-                                                  console.log(`Current enabled state: ${link.enabled}`);
-                                                  console.log(`New checked state: ${checked}`);
-                                                  console.log(`Checkbox render checked state: ${link.enabled}`);
-                                                  console.log(`About to call updateExternalLink with:`, {
-                                                    productId: product.id,
-                                                    index,
-                                                    field: "enabled",
-                                                    value: checked,
-                                                    valueType: typeof checked
-                                                  });
-                                                  updateExternalLink(product.id, index, "enabled", checked);
-
-                                                  // Show SaveBar when changes are made
-
-                                                  console.log(`=== END CHECKBOX CHANGE ===`);
-                                                }}
-                                                helpText="When enabled, this button will be visible on the product page"
-                                              />
-                                            </FormLayout>
-                                          </BlockStack>
-                                        </Card>
-                                      ))}
-                                    </BlockStack>
-                                  ) : (
-                                    <EmptyState
-                                      heading="No external links configured"
-                                      action={{
-                                        content: "Add your first link",
-                                        onAction: () => addExternalLink(product.id),
-                                        icon: PlusIcon
-                                      }}
-                                      image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-                                    >
-                                      <Text as="p" variant="bodyMd">
-                                        Add external links (e.g., affiliate links) that will appear as buttons on your product page.
-                                      </Text>
-                                    </EmptyState>
-                                  )}
-                                </BlockStack>
-                              </Card>
-
-                              {/* Display Options */}
-                              <Card>
-                                <BlockStack gap="300">
-                                  <Text as="h4" variant="bodyLg" fontWeight="semibold">Display Options</Text>
-                                  <Checkbox
-                                    label="Hide original 'Add to cart' button (experimental)"
-                                    name="hideAtc"
-                                    checked={expandedProducts[product.id]?.hideAtc || false}
-                                    onChange={(checked) => {
-                                      setExpandedProducts(prev => {
-                                        const newState = {
-                                          ...prev,
-                                          [product.id]: {
-                                            ...prev[product.id],
-                                            hideAtc: checked
-                                          }
-                                        };
-
-                                        // Show SaveBar when changes are made
-                                        setSaveBarVisible(true);
-                                        setCurrentSavingProductId(product.id);
-
-                                        return newState;
-                                      });
-                                    }}
-                                    helpText="WARNING: This feature may not work with all themes. Test before publishing."
-                                  />
-                                </BlockStack>
-                              </Card>
-
-                              {/* Action Buttons */}
-                              <InlineStack gap="300" align="start">
-                                <Button
-                                  variant="primary"
-                                  onClick={() => {
-                                    console.log(`=== SAVE BUTTON CLICKED ===`);
-                                    console.log(`Product ID: ${product.id}`);
-                                    console.log(`Current expanded state:`, expandedProducts[product.id]);
-                                    saveProductConfiguration(product.id);
+                      <BlockStack gap="400">
+                        <InlineStack align="space-between" blockAlign="start" gap="400">
+                          <InlineStack gap="300" blockAlign="center">
+                            {product.featuredImage && (
+                              <div style={{ flexShrink: 0 }}>
+                                <img
+                                  src={product.featuredImage.url}
+                                  alt={product.featuredImage.altText || ""}
+                                  style={{
+                                    width: "40px",
+                                    height: "40px",
+                                    objectFit: "cover",
+                                    borderRadius: "4px"
                                   }}
-                                  loading={expandedProducts[product.id]?.isSaving}
-                                  disabled={expandedProducts[product.id]?.isSaving || !hasUnsavedChanges(product.id)}
-                                  icon={expandedProducts[product.id]?.isSaving ? ClockIcon : SaveIcon}
-                                >
-                                  {expandedProducts[product.id]?.isSaving ? "Saving..." : "Save Changes"}
-                                </Button>
-                                <Button
-                                  variant="secondary"
-                                  onClick={() => handlePreviewProduct(product.handle)}
-                                  icon={ViewIcon}
-                                >
-                                  Preview Product
-                                </Button>
+                                />
+                              </div>
+                            )}
+                            <BlockStack gap="200">
+                              <Text as="h3" variant="bodyLg" fontWeight="semibold">
+                                {product.title}
+                              </Text>
+                              <InlineStack gap="200" blockAlign="center" wrap={false}>
+                                <InlineStack gap="100" blockAlign="center">
+                                  <Badge tone={product.isEnabled ? "success" : "critical"}>
+                                    {product.isEnabled ? "Enabled" : "Disabled"}
+                                  </Badge>
+                                  {product.hasMultipleLinks && (
+                                    <Badge tone="info">
+                                      Multiple links
+                                    </Badge>
+                                  )}
+                                  {product.buttonText && (
+                                    <Text as="span" variant="bodyMd" tone="subdued">
+                                      Button: "{product.buttonText}"
+                                    </Text>
+                                  )}
+                                </InlineStack>
+
                               </InlineStack>
+                              {product.externalUrl && (
+                                <InlineStack gap="100" blockAlign="center">
+                                  <Icon source={ExternalIcon} />
+                                  <Text
+                                    as="span"
+                                    variant="bodyMd"
+                                    tone="subdued"
+                                  >
+                                    {truncateUrl(product.externalUrl, 60)}
+                                  </Text>
+                                </InlineStack>
+                              )}
                             </BlockStack>
-                          </Card>
-                        </Form>
-                      )}
+                          </InlineStack>
+
+                          <InlineStack gap="200">
+                            <Button
+                              variant="secondary"
+                              size="medium"
+                              onClick={() => {
+                                toggleProductExpansion(product.id, product);
+                                if (!expandedProducts[product.id]?.isExpanded) {
+                                  startEditingProduct(product.id);
+                                }
+                              }}
+                              icon={expandedProducts[product.id]?.isExpanded ? ChevronUpIcon : SettingsIcon}
+                            >
+                              {expandedProducts[product.id]?.isExpanded ? "Collapse" : "Edit"}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="medium"
+                              onClick={() => handlePreviewProduct(product.handle)}
+                              icon={ViewIcon}
+                            >
+                              Preview
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="medium"
+                              tone="critical"
+                              onClick={() => handleDeleteClick(product)}
+                              icon={DeleteIcon}
+                            >
+                              Delete
+                            </Button>
+                          </InlineStack>
+                        </InlineStack>
+
+                        {/* Expanded configuration section */}
+                        {expandedProducts[product.id]?.isExpanded && (
+                          <Form method="post">
+                            <input type="hidden" name="actionType" value="save" />
+                            <input type="hidden" name="productId" value={product.id} />
+                            <input type="hidden" name="linkCount" value={expandedProducts[product.id]?.externalLinks?.length || 0} />
+
+                            <Card background="bg-surface-secondary">
+                              <BlockStack gap="400">
+                                <InlineStack align="space-between" blockAlign="center">
+                                  <Text variant="headingMd" as="h3">
+                                    Configure: {product.title}
+                                  </Text>
+                                  {expandedProducts[product.id]?.isSaving && (
+                                    <InlineStack gap="100" blockAlign="center">
+                                      <Spinner accessibilityLabel="Saving" size="small" />
+                                      <Badge tone="info">Saving...</Badge>
+                                    </InlineStack>
+                                  )}
+                                </InlineStack>
+
+                                {/* External Links Configuration */}
+                                <Card>
+                                  <BlockStack gap="400">
+                                    <InlineStack align="space-between" blockAlign="center">
+                                      <Text as="h4" variant="bodyLg" fontWeight="semibold">External Links</Text>
+                                      <Button
+                                        onClick={() => addExternalLink(product.id)}
+                                        icon={PlusIcon}
+                                        size="medium"
+                                      >
+                                        Add Link
+                                      </Button>
+                                    </InlineStack>
+
+                                    {expandedProducts[product.id]?.externalLinks?.length > 0 ? (
+                                      <BlockStack gap="300">
+                                        {expandedProducts[product.id].externalLinks.map((link, index) => (
+                                          <Card key={index} background="bg-surface">
+                                            <BlockStack gap="300">
+                                              <InlineStack align="space-between" blockAlign="center">
+                                                <Text as="h5" variant="bodyMd" fontWeight="semibold">
+                                                  Link {expandedProducts[product.id].externalLinks.length - index}
+                                                </Text>
+                                                <Button
+                                                  onClick={() => removeExternalLink(product.id, index)}
+                                                  icon={DeleteIcon}
+                                                  variant="plain"
+                                                  tone="critical"
+                                                  size="medium"
+                                                >
+                                                  Remove
+                                                </Button>
+                                              </InlineStack>
+
+                                              <FormLayout>
+                                                <TextField
+                                                  label="Button text"
+                                                  name={`link_${index}_text`}
+                                                  value={link.text || ""}
+                                                  onChange={(value) => {
+                                                    updateExternalLink(product.id, index, "text", value);
+                                                  }}
+                                                  autoComplete="off"
+                                                  placeholder="Buy on Amazon"
+                                                  helpText="Text displayed on the button"
+                                                />
+
+                                                <TextField
+                                                  label="Destination URL"
+                                                  name={`link_${index}_url`}
+                                                  value={link.url || ""}
+                                                  onChange={(value) => {
+                                                    updateExternalLink(product.id, index, "url", value);
+                                                  }}
+                                                  autoComplete="off"
+                                                  placeholder="https://amazon.com/product/..."
+                                                  helpText="Full URL where the button should redirect"
+                                                />
+
+                                                <Checkbox
+                                                  label="Enable this button"
+                                                  name={`link_${index}_enabled`}
+                                                  checked={link.enabled}
+                                                  onChange={(checked) => {
+                                                    console.log(`=== CHECKBOX CHANGE EXISTING PRODUCT ===`);
+                                                    console.log(`Product ID: ${product.id}`);
+                                                    console.log(`Link index: ${index}`);
+                                                    console.log(`Current enabled state: ${link.enabled}`);
+                                                    console.log(`New checked state: ${checked}`);
+                                                    console.log(`Checkbox render checked state: ${link.enabled}`);
+                                                    console.log(`About to call updateExternalLink with:`, {
+                                                      productId: product.id,
+                                                      index,
+                                                      field: "enabled",
+                                                      value: checked,
+                                                      valueType: typeof checked
+                                                    });
+                                                    updateExternalLink(product.id, index, "enabled", checked);
+
+                                                    // Show SaveBar when changes are made
+
+                                                    console.log(`=== END CHECKBOX CHANGE ===`);
+                                                  }}
+                                                  helpText="When enabled, this button will be visible on the product page"
+                                                />
+                                              </FormLayout>
+                                            </BlockStack>
+                                          </Card>
+                                        ))}
+                                      </BlockStack>
+                                    ) : (
+                                      <EmptyState
+                                        heading="No external links configured"
+                                        action={{
+                                          content: "Add your first link",
+                                          onAction: () => addExternalLink(product.id),
+                                          icon: PlusIcon
+                                        }}
+                                        image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                                      >
+                                        <Text as="p" variant="bodyMd">
+                                          Add external links (e.g., affiliate links) that will appear as buttons on your product page.
+                                        </Text>
+                                      </EmptyState>
+                                    )}
+                                  </BlockStack>
+                                </Card>
+
+                                {/* Display Options */}
+                                <Card>
+                                  <BlockStack gap="300">
+                                    <Text as="h4" variant="bodyLg" fontWeight="semibold">Display Options</Text>
+                                    <Checkbox
+                                      label="Hide original 'Add to cart' button (experimental)"
+                                      name="hideAtc"
+                                      checked={expandedProducts[product.id]?.hideAtc || false}
+                                      onChange={(checked) => {
+                                        setExpandedProducts(prev => {
+                                          const newState = {
+                                            ...prev,
+                                            [product.id]: {
+                                              ...prev[product.id],
+                                              hideAtc: checked
+                                            }
+                                          };
+
+                                          // Show SaveBar when changes are made
+                                          setSaveBarVisible(true);
+                                          setCurrentSavingProductId(product.id);
+
+                                          return newState;
+                                        });
+                                      }}
+                                      helpText="WARNING: This feature may not work with all themes. Test before publishing."
+                                    />
+                                  </BlockStack>
+                                </Card>
+
+                                {/* Action Buttons */}
+                                <InlineStack gap="300" align="start">
+                                  <Button
+                                    variant="primary"
+                                    onClick={() => {
+                                      console.log(`=== SAVE BUTTON CLICKED ===`);
+                                      console.log(`Product ID: ${product.id}`);
+                                      console.log(`Current expanded state:`, expandedProducts[product.id]);
+                                      saveProductConfiguration(product.id);
+                                    }}
+                                    loading={expandedProducts[product.id]?.isSaving}
+                                    disabled={expandedProducts[product.id]?.isSaving || !hasUnsavedChanges(product.id)}
+                                    icon={expandedProducts[product.id]?.isSaving ? ClockIcon : SaveIcon}
+                                  >
+                                    {expandedProducts[product.id]?.isSaving ? "Saving..." : "Save Changes"}
+                                  </Button>
+                                  <Button
+                                    variant="secondary"
+                                    onClick={() => handlePreviewProduct(product.handle)}
+                                    icon={ViewIcon}
+                                  >
+                                    Preview Product
+                                  </Button>
+                                </InlineStack>
+                              </BlockStack>
+                            </Card>
+                          </Form>
+                        )}
+                      </BlockStack>
                     </Card>
                   ))}
                 </BlockStack>
